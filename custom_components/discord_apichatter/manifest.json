@@ -8,5 +8,5 @@
     "documentation":  "https://www.home-assistant.io/integrations/discord",
     "integration_type":  "service",
     "iot_class":  "cloud_push",
-    "version":  "0.6.2"
+    "version":  "0.6.1"
 }

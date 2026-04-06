@@ -41,7 +41,7 @@ from .const import (
 )
 
 DEFAULT_LIVE_TEMPLATE = """🔴 **{{ name }}** is now live on Twitch!\n\n🎮 **Game:** {{ game or 'Unknown' }}\n📝 **Title:** {{ title or 'No title set' }}{% if viewers is not none %}\n👀 **Viewers:** {{ viewers }}{% endif %}{% if started_at %}\n🕒 **Started:** {{ started_at }}{% endif %}{% if stream_duration_human %}\n⏱️ **Live for:** {{ stream_duration_human }}{% endif %}\n\n🔗 {{ url }}"""
-DEFAULT_UPDATE_TEMPLATE = """🟣 **{{ name }}** updated the stream.\n\n🎮 **Game:** {{ game or 'Unknown' }}\n📝 **Title:** {{ title or 'No title set' }}{% if viewers is not none %}\n👀 **Viewers:** {{ viewers }}{% endif %}{% if stream_duration_human %}\n⏱️ **Live for:** {{ stream_duration_human }}{% endif %}\n\n🔗 {{ url }}"""
+DEFAULT_UPDATE_TEMPLATE = """🟣 **{{ name }}** updated the stream.\n\n{% if title_changed %}📝 **Title:** {{ previous_title or 'No title set' }} → {{ title or 'No title set' }}\n{% else %}📝 **Title:** {{ title or 'No title set' }}\n{% endif %}{% if game_changed %}🎮 **Game:** {{ previous_game or 'Unknown' }} → {{ game or 'Unknown' }}\n{% else %}🎮 **Game:** {{ game or 'Unknown' }}\n{% endif %}{% if viewers is not none %}👀 **Viewers:** {{ viewers }}\n{% endif %}{% if stream_duration_human %}⏱️ **Live for:** {{ stream_duration_human }}{% endif %}\n\n🔗 {{ url }}"""
 DEFAULT_OFFLINE_TEMPLATE = """⚫ **{{ name }}** is now offline.\n\n📝 **Last title:** {{ title or 'No title set' }}\n🎮 **Last game:** {{ game or 'Unknown' }}{% if started_at %}\n🕒 **Started:** {{ started_at }}{% endif %}{% if stream_duration_human %}\n⏱️ **Streamed for:** {{ stream_duration_human }}{% endif %}\n\n🔗 {{ url }}"""
 
 LIVE_STATES = {"streaming", "live", STATE_ON}
@@ -358,8 +358,10 @@ class StreamTrackerManager:
                 or tracker.get("last_channel_picture")
             )
 
-            title_changed = title != tracker.get("last_title")
-            game_changed = game != tracker.get("last_game")
+            previous_title = tracker.get("last_title")
+            previous_game = tracker.get("last_game")
+            title_changed = title != previous_title
+            game_changed = game != previous_game
 
             client = self._resolve_client(tracker)
             channel_id = self._resolve_channel_id(tracker)
@@ -483,10 +485,12 @@ class StreamTrackerManager:
         """Build the template context for Discord message rendering."""
         entity_id = tracker[ATTR_ENTITY_ID]
         object_id = entity_id.split(".", 1)[1] if "." in entity_id else entity_id
-        title = self._coalesce_text(state.attributes.get("title"), tracker.get("last_title"))
+        previous_title = tracker.get("last_title")
+        previous_game = tracker.get("last_game")
+        title = self._coalesce_text(state.attributes.get("title"), previous_title)
         game = self._coalesce_text(
             state.attributes.get("game") or state.attributes.get("game_name"),
-            tracker.get("last_game"),
+            previous_game,
         )
         viewers = state.attributes.get("viewers", tracker.get("last_viewers"))
         started_at = state.attributes.get("started_at", tracker.get("last_started_at"))
@@ -508,7 +512,11 @@ class StreamTrackerManager:
             "is_live": self._state_is_live(str(state.state).lower()),
             "name": state.name,
             "title": title,
+            "previous_title": previous_title,
+            "title_changed": title != previous_title,
             "game": game,
+            "previous_game": previous_game,
+            "game_changed": game != previous_game,
             "viewers": viewers,
             "started_at": started_at,
             "stream_duration": stream_duration,

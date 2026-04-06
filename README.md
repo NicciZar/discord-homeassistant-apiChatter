@@ -115,8 +115,8 @@ Behavior:
 
 The UI also lets you customize the live/update/offline templates with variables such as:
 - `{{ name }}`
-- `{{ title }}`
-- `{{ game }}`
+- `{{ title }}` / `{{ previous_title }}` / `{{ title_changed }}`
+- `{{ game }}` / `{{ previous_game }}` / `{{ game_changed }}`
 - `{{ viewers }}`
 - `{{ started_at }}`
 - `{{ stream_duration_human }}`

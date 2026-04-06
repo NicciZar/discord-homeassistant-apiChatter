@@ -54,6 +54,7 @@ from .stream_tracker import (
 )
 
 _LOGGER = logging.getLogger(__name__)
+ATTR_RESET_TEMPLATES = "reset_templates_to_default"
 
 CONFIG_SCHEMA = vol.Schema(
     {
@@ -88,6 +89,10 @@ def _build_tracker_schema(defaults: Mapping[str, Any] | None = None) -> vol.Sche
             vol.Optional(
                 ATTR_SYNC_NOW,
                 default=defaults.get(ATTR_SYNC_NOW, True),
+            ): BooleanSelector(),
+            vol.Optional(
+                ATTR_RESET_TEMPLATES,
+                default=False,
             ): BooleanSelector(),
             vol.Optional(
                 ATTR_LIVE_TEMPLATE,
@@ -378,20 +383,27 @@ class DiscordApiChatterOptionsFlow(OptionsFlow):
         normalized_tracker_id = tracker_id or slugify(
             f"{user_input[ATTR_ENTITY_ID]}_{channel_id or 'default'}_{self.config_entry.entry_id}"
         )
+        reset_templates = bool(user_input.get(ATTR_RESET_TEMPLATES, False))
 
         return {
             ATTR_TRACKER_ID: normalized_tracker_id,
             ATTR_ENTRY_ID: self.config_entry.entry_id,
             ATTR_ENTITY_ID: str(user_input[ATTR_ENTITY_ID]),
             ATTR_CHANNEL_ID: channel_id,
-            ATTR_LIVE_TEMPLATE: str(
-                user_input.get(ATTR_LIVE_TEMPLATE, DEFAULT_LIVE_TEMPLATE)
+            ATTR_LIVE_TEMPLATE: (
+                DEFAULT_LIVE_TEMPLATE
+                if reset_templates
+                else str(user_input.get(ATTR_LIVE_TEMPLATE, DEFAULT_LIVE_TEMPLATE))
             ),
-            ATTR_UPDATE_TEMPLATE: str(
-                user_input.get(ATTR_UPDATE_TEMPLATE, DEFAULT_UPDATE_TEMPLATE)
+            ATTR_UPDATE_TEMPLATE: (
+                DEFAULT_UPDATE_TEMPLATE
+                if reset_templates
+                else str(user_input.get(ATTR_UPDATE_TEMPLATE, DEFAULT_UPDATE_TEMPLATE))
             ),
-            ATTR_OFFLINE_TEMPLATE: str(
-                user_input.get(ATTR_OFFLINE_TEMPLATE, DEFAULT_OFFLINE_TEMPLATE)
+            ATTR_OFFLINE_TEMPLATE: (
+                DEFAULT_OFFLINE_TEMPLATE
+                if reset_templates
+                else str(user_input.get(ATTR_OFFLINE_TEMPLATE, DEFAULT_OFFLINE_TEMPLATE))
             ),
             ATTR_UPDATE_ON_TITLE_CHANGE: bool(
                 user_input.get(ATTR_UPDATE_ON_TITLE_CHANGE, True)

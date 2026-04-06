@@ -39,11 +39,12 @@
       },
       "add_tracker": {
         "title": "Add stream tracker",
-        "description": "Choose the Twitch entity first. The Discord channel ID is optional and can be left empty to use the default channel. Then adjust when the message should update and, if wanted, customize the three Discord templates. Available template variables: `name`, `title`, `game`, `viewers`, `started_at`, `stream_duration_human`, `stream_duration_seconds`, `url`, `thumbnail_url`, `stream_picture`, `channel_picture`, `state`, `entity_id`, `tracker_id`.",
+        "description": "Choose the Twitch entity first. The Discord channel ID is optional and can be left empty to use the default channel. Then adjust when the message should update and, if wanted, customize the three Discord templates. Available template variables: `name`, `title`, `previous_title`, `title_changed`, `game`, `previous_game`, `game_changed`, `viewers`, `started_at`, `stream_duration_human`, `stream_duration_seconds`, `url`, `thumbnail_url`, `stream_picture`, `channel_picture`, `state`, `entity_id`, `tracker_id`.",
         "data": {
           "entity_id": "Twitch stream entity",
           "channel_id": "Discord channel ID (optional)",
           "sync_now": "Sync immediately if the streamer is already live",
+          "reset_templates_to_default": "Reset all templates to the current defaults on save",
           "update_on_title_change": "Update the Discord message when the stream title changes",
           "update_on_game_change": "Update the Discord message when the game/category changes",
           "live_template": "Live message template",
@@ -65,6 +66,7 @@
           "entity_id": "Twitch stream entity",
           "channel_id": "Discord channel ID (optional)",
           "sync_now": "Sync immediately if the streamer is already live",
+          "reset_templates_to_default": "Reset all templates to the current defaults on save",
           "update_on_title_change": "Update the Discord message when the stream title changes",
           "update_on_game_change": "Update the Discord message when the game/category changes",
           "live_template": "Live message template",
