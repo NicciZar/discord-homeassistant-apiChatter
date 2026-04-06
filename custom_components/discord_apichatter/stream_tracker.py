@@ -362,6 +362,10 @@ class StreamTrackerManager:
             previous_game = tracker.get("last_game")
             title_changed = title != previous_title
             game_changed = game != previous_game
+            should_send_update = (
+                (tracker.get(ATTR_UPDATE_ON_TITLE_CHANGE, True) and title_changed)
+                or (tracker.get(ATTR_UPDATE_ON_GAME_CHANGE, True) and game_changed)
+            )
 
             client = self._resolve_client(tracker)
             channel_id = self._resolve_channel_id(tracker)
@@ -379,11 +383,7 @@ class StreamTrackerManager:
                 )
                 tracker[ATTR_MESSAGE_ID] = response.get("id")
                 action = "sent"
-            elif is_live and (
-                force
-                or (tracker.get(ATTR_UPDATE_ON_TITLE_CHANGE, True) and title_changed)
-                or (tracker.get(ATTR_UPDATE_ON_GAME_CHANGE, True) and game_changed)
-            ):
+            elif is_live and should_send_update:
                 content = self._render_message(tracker, tracker_id, new_state, "update")
                 if tracker.get(ATTR_MESSAGE_ID):
                     try:
