@@ -91,10 +91,6 @@ def _build_tracker_schema(defaults: Mapping[str, Any] | None = None) -> vol.Sche
                 default=defaults.get(ATTR_SYNC_NOW, True),
             ): BooleanSelector(),
             vol.Optional(
-                ATTR_RESET_TEMPLATES,
-                default=False,
-            ): BooleanSelector(),
-            vol.Optional(
                 ATTR_LIVE_TEMPLATE,
                 default=defaults.get(ATTR_LIVE_TEMPLATE, DEFAULT_LIVE_TEMPLATE),
             ): TextSelector(TextSelectorConfig(multiline=True)),
@@ -106,6 +102,10 @@ def _build_tracker_schema(defaults: Mapping[str, Any] | None = None) -> vol.Sche
                 ATTR_OFFLINE_TEMPLATE,
                 default=defaults.get(ATTR_OFFLINE_TEMPLATE, DEFAULT_OFFLINE_TEMPLATE),
             ): TextSelector(TextSelectorConfig(multiline=True)),
+            vol.Optional(
+                ATTR_RESET_TEMPLATES,
+                default=False,
+            ): BooleanSelector(),
         }
     )
 
@@ -209,6 +209,8 @@ class DiscordApiChatterOptionsFlow(OptionsFlow):
         """Initialize the options flow."""
         self.config_entry = config_entry
         self._selected_tracker_id: str | None = None
+        self._pending_tracker_input: dict[str, Any] | None = None
+        self._pending_tracker_step: str | None = None
 
     async def async_step_init(
         self,
@@ -227,17 +229,9 @@ class DiscordApiChatterOptionsFlow(OptionsFlow):
     ) -> ConfigFlowResult:
         """Add a new tracked stream."""
         if user_input is not None:
-            trackers = self._get_trackers()
-            tracker = self._normalize_tracker(user_input)
-            trackers = [
-                existing
-                for existing in trackers
-                if existing.get(ATTR_TRACKER_ID) != tracker[ATTR_TRACKER_ID]
-            ]
-            trackers.append(tracker)
-            return self.async_create_entry(
-                title="",
-                data=self.config_entry.options | {CONF_TRACKERS: trackers},
+            return await self._async_handle_tracker_submission(
+                user_input,
+                step_id="add_tracker",
             )
 
         return self.async_show_form(
@@ -288,26 +282,73 @@ class DiscordApiChatterOptionsFlow(OptionsFlow):
             return await self.async_step_init()
 
         if user_input is not None:
-            trackers = self._get_trackers()
-            updated = self._normalize_tracker(
+            return await self._async_handle_tracker_submission(
                 user_input,
+                step_id="edit_tracker",
                 tracker_id=tracker[ATTR_TRACKER_ID],
             )
-            trackers = [
-                existing
-                for existing in trackers
-                if existing.get(ATTR_TRACKER_ID) != tracker[ATTR_TRACKER_ID]
-            ]
-            trackers.append(updated)
-            return self.async_create_entry(
-                title="",
-                data=self.config_entry.options | {CONF_TRACKERS: trackers},
-            )
 
-        defaults = tracker | {ATTR_SYNC_NOW: True}
+        defaults = tracker | {ATTR_SYNC_NOW: True, ATTR_RESET_TEMPLATES: False}
         return self.async_show_form(
             step_id="edit_tracker",
             data_schema=_build_tracker_schema(defaults),
+        )
+
+    async def async_step_confirm_reset_templates(
+        self,
+        user_input: dict[str, Any] | None = None,
+    ) -> ConfigFlowResult:
+        """Ask the user to confirm resetting templates to defaults."""
+        if self._pending_tracker_input is None or self._pending_tracker_step is None:
+            return await self.async_step_init()
+
+        return self.async_show_menu(
+            step_id="confirm_reset_templates",
+            menu_options=[
+                "confirm_reset_templates_yes",
+                "confirm_reset_templates_no",
+            ],
+            description_placeholders={
+                "entity_id": str(self._pending_tracker_input.get(ATTR_ENTITY_ID, ""))
+            },
+        )
+
+    async def async_step_confirm_reset_templates_yes(
+        self,
+        user_input: dict[str, Any] | None = None,
+    ) -> ConfigFlowResult:
+        """Reset the selected templates to the current defaults and save."""
+        if self._pending_tracker_input is None:
+            return await self.async_step_init()
+
+        tracker_id = self._selected_tracker_id if self._pending_tracker_step == "edit_tracker" else None
+        pending_input = self._pending_tracker_input
+        self._pending_tracker_input = None
+        self._pending_tracker_step = None
+
+        return self._async_save_tracker(
+            pending_input,
+            tracker_id=tracker_id,
+            force_defaults=True,
+        )
+
+    async def async_step_confirm_reset_templates_no(
+        self,
+        user_input: dict[str, Any] | None = None,
+    ) -> ConfigFlowResult:
+        """Return to the previous tracker form without resetting templates."""
+        if self._pending_tracker_input is None or self._pending_tracker_step is None:
+            return await self.async_step_init()
+
+        pending_input = dict(self._pending_tracker_input)
+        pending_input[ATTR_RESET_TEMPLATES] = False
+        step_id = self._pending_tracker_step
+        self._pending_tracker_input = pending_input
+        self._pending_tracker_step = None
+
+        return self.async_show_form(
+            step_id=step_id,
+            data_schema=_build_tracker_schema(pending_input),
         )
 
     async def async_step_remove_tracker(
@@ -372,18 +413,61 @@ class DiscordApiChatterOptionsFlow(OptionsFlow):
                 return tracker
         return None
 
+    async def _async_handle_tracker_submission(
+        self,
+        user_input: dict[str, Any],
+        *,
+        step_id: str,
+        tracker_id: str | None = None,
+    ) -> ConfigFlowResult:
+        """Handle tracker form submission, including reset confirmation."""
+        if user_input.get(ATTR_RESET_TEMPLATES, False):
+            self._pending_tracker_input = dict(user_input)
+            self._pending_tracker_step = step_id
+            if tracker_id is not None:
+                self._selected_tracker_id = tracker_id
+            return await self.async_step_confirm_reset_templates()
+
+        return self._async_save_tracker(user_input, tracker_id=tracker_id)
+
+    def _async_save_tracker(
+        self,
+        user_input: Mapping[str, Any],
+        *,
+        tracker_id: str | None = None,
+        force_defaults: bool = False,
+    ) -> ConfigFlowResult:
+        """Save a tracker and close the options flow."""
+        trackers = self._get_trackers()
+        tracker = self._normalize_tracker(
+            user_input,
+            tracker_id=tracker_id,
+            force_defaults=force_defaults,
+        )
+        trackers = [
+            existing
+            for existing in trackers
+            if existing.get(ATTR_TRACKER_ID) != tracker[ATTR_TRACKER_ID]
+        ]
+        trackers.append(tracker)
+        return self.async_create_entry(
+            title="",
+            data=self.config_entry.options | {CONF_TRACKERS: trackers},
+        )
+
     def _normalize_tracker(
         self,
         user_input: Mapping[str, Any],
         *,
         tracker_id: str | None = None,
+        force_defaults: bool = False,
     ) -> dict[str, Any]:
         """Normalize tracker form input for storage."""
         channel_id = str(user_input.get(ATTR_CHANNEL_ID, "")).strip() or None
         normalized_tracker_id = tracker_id or slugify(
             f"{user_input[ATTR_ENTITY_ID]}_{channel_id or 'default'}_{self.config_entry.entry_id}"
         )
-        reset_templates = bool(user_input.get(ATTR_RESET_TEMPLATES, False))
+        reset_templates = force_defaults or bool(user_input.get(ATTR_RESET_TEMPLATES, False))
 
         return {
             ATTR_TRACKER_ID: normalized_tracker_id,

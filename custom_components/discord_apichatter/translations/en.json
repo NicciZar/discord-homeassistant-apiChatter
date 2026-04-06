@@ -80,6 +80,14 @@
         "data": {
           "tracker_id": "Tracked stream"
         }
+      },
+      "confirm_reset_templates": {
+        "title": "Reset templates to defaults?",
+        "description": "This will overwrite the live, update, and offline templates for `{entity_id}` with the current built-in defaults and save immediately.",
+        "menu_options": {
+          "confirm_reset_templates_yes": "Yes, reset and save",
+          "confirm_reset_templates_no": "No, go back"
+        }
       }
     }
   }
