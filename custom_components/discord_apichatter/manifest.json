@@ -5,8 +5,8 @@
 
                    ],
     "config_flow":  true,
-    "documentation":  "https://www.home-assistant.io/integrations/discord",
+    "documentation":  "https://github.com/NicciZar/discord-homeassistant-apiChatter",
     "integration_type":  "service",
     "iot_class":  "cloud_push",
-    "version":  "0.6.1"
+    "version":  "0.6.2"
 }
