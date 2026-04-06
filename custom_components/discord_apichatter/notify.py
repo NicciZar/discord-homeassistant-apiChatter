@@ -6,8 +6,8 @@ import logging
 from typing import Any
 
 from homeassistant.components.notify import ATTR_DATA, ATTR_TARGET, BaseNotificationService
-from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
 
 from .const import (
     ATTR_ALLOWED_MENTIONS,
@@ -15,6 +15,7 @@ from .const import (
     ATTR_ENTRY_ID,
     ATTR_TTS,
     CONF_DEFAULT_CHANNEL,
+    DATA_ENTRIES,
     DOMAIN,
 )
 
@@ -32,7 +33,7 @@ async def async_get_service(
         return None
 
     entry_id = discovery_info[ATTR_ENTRY_ID]
-    entry_data = hass.data[DOMAIN][entry_id]
+    entry_data = hass.data[DOMAIN][DATA_ENTRIES][entry_id]
     return DiscordNotificationService(
         client=entry_data["client"],
         default_channel=entry_data["entry"].data.get(CONF_DEFAULT_CHANNEL),

@@ -25,5 +25,31 @@
     "abort": {
       "already_configured": "This Discord bot is already configured."
     }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Manage tracked streams",
+        "description": "Create or remove automatic Discord updates for Twitch-style stream entities.",
+        "menu_options": {
+          "add_tracker": "Add stream tracker",
+          "edit_tracker_select": "Edit stream tracker",
+          "remove_tracker": "Remove stream tracker"
+        }
+      },
+      "add_tracker": {
+        "title": "Add stream tracker",
+        "description": "Pick the Twitch entity and customize the Discord message templates. Available template variables: `name`, `title`, `game`, `viewers`, `started_at`, `stream_duration_human`, `stream_duration_seconds`, `url`, `thumbnail_url`, `stream_picture`, `channel_picture`, `state`, `entity_id`, `tracker_id`."
+      },
+      "edit_tracker_select": {
+        "title": "Select stream tracker"
+      },
+      "edit_tracker": {
+        "title": "Edit stream tracker"
+      },
+      "remove_tracker": {
+        "title": "Remove stream tracker"
+      }
+    }
   }
 }

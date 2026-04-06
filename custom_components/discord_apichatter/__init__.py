@@ -11,8 +11,15 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.typing import ConfigType
 
 from .api import DiscordApiClient, DiscordApiError, DiscordAuthenticationError
-from .const import ATTR_ENTRY_ID, DOMAIN
+from .const import (
+    ATTR_ENTRY_ID,
+    CONF_TRACKERS,
+    DATA_ENTRIES,
+    DATA_STREAM_TRACKER,
+    DOMAIN,
+)
 from .services import async_register_services, async_unregister_services
+from .stream_tracker import StreamTrackerManager
 
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 PLATFORMS = [Platform.NOTIFY]
@@ -35,10 +42,25 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     except DiscordApiError as err:
         raise ConfigEntryNotReady(f"Failed to connect to Discord: {err}") from err
 
-    hass.data.setdefault(DOMAIN, {})[entry.entry_id] = {
+    domain_data = hass.data.setdefault(DOMAIN, {})
+    domain_data.setdefault(DATA_ENTRIES, {})[entry.entry_id] = {
         "client": client,
         "entry": entry,
     }
+
+    tracker_manager = domain_data.get(DATA_STREAM_TRACKER)
+    if tracker_manager is None:
+        tracker_manager = StreamTrackerManager(hass)
+        await tracker_manager.async_initialize()
+        domain_data[DATA_STREAM_TRACKER] = tracker_manager
+
+    entry.async_on_unload(entry.add_update_listener(_async_update_listener))
+
+    if CONF_TRACKERS in entry.options:
+        await tracker_manager.async_apply_entry_trackers(
+            entry.entry_id,
+            entry.options[CONF_TRACKERS],
+        )
 
     await async_register_services(hass)
 
@@ -58,10 +80,24 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""
     domain_data = hass.data.get(DOMAIN, {})
-    domain_data.pop(entry.entry_id, None)
 
-    if not domain_data:
+    if tracker_manager := domain_data.get(DATA_STREAM_TRACKER):
+        tracker_manager.async_detach_entry(entry.entry_id)
+
+    entries = domain_data.get(DATA_ENTRIES, {})
+    entries.pop(entry.entry_id, None)
+
+    if not entries:
         await async_unregister_services(hass)
+
+        if tracker_manager := domain_data.get(DATA_STREAM_TRACKER):
+            await tracker_manager.async_shutdown()
+
         hass.data.pop(DOMAIN, None)
 
     return True
+
+
+async def _async_update_listener(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Reload the config entry when options are updated."""
+    await hass.config_entries.async_reload(entry.entry_id)

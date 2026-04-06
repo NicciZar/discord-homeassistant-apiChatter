@@ -102,3 +102,95 @@ delete_message:
       example: "123456789012345679"
       selector:
         text:
+
+track_stream:
+  name: Track stream
+  description: Persistently monitor a Twitch/stream entity and automatically post, edit, and close Discord messages as the stream changes.
+  fields:
+    entity_id:
+      name: Stream entity
+      description: The Home Assistant entity to monitor, such as a Twitch Helix sensor.
+      required: true
+      selector:
+        entity:
+          domain: sensor
+    tracker_id:
+      name: Tracker ID
+      description: Optional custom ID when tracking the same entity in multiple Discord channels.
+      example: nicci_main_channel
+      selector:
+        text:
+    entry_id:
+      name: Config entry ID
+      description: Optional when more than one Discord API Chatter bot is configured.
+      selector:
+        text:
+    channel_id:
+      name: Channel ID
+      description: Discord channel ID to post to. If omitted, the configured default channel is used.
+      example: "123456789012345678"
+      selector:
+        text:
+    live_template:
+      name: Live message template
+      description: Jinja template used when the stream goes live. Available variables include `name`, `title`, `game`, `viewers`, `started_at`, `url`, `state`, `entity_id`, and `tracker_id`.
+      selector:
+        text:
+          multiline: true
+    update_template:
+      name: Update message template
+      description: Jinja template used when the title or game changes while the stream is live.
+      selector:
+        text:
+          multiline: true
+    offline_template:
+      name: Offline message template
+      description: Jinja template used when the stream ends and the tracked Discord message is edited to offline status.
+      selector:
+        text:
+          multiline: true
+    update_on_title_change:
+      name: Update on title change
+      description: Edit the tracked Discord message whenever the stream title changes.
+      selector:
+        boolean:
+    update_on_game_change:
+      name: Update on game change
+      description: Edit the tracked Discord message whenever the selected game/category changes.
+      selector:
+        boolean:
+    sync_now:
+      name: Sync immediately
+      description: When enabled, the integration immediately checks the current entity state and posts a live message if the streamer is already online.
+      selector:
+        boolean:
+
+untrack_stream:
+  name: Untrack stream
+  description: Stop monitoring a previously registered stream tracker.
+  fields:
+    tracker_id:
+      name: Tracker ID
+      description: Preferred way to identify which tracked stream to remove.
+      selector:
+        text:
+    entity_id:
+      name: Stream entity
+      description: Optional alternative lookup when `tracker_id` is not supplied.
+      selector:
+        entity:
+          domain: sensor
+    entry_id:
+      name: Config entry ID
+      selector:
+        text:
+    channel_id:
+      name: Channel ID
+      description: Optional alternative lookup when `tracker_id` is not supplied.
+      selector:
+        text:
+    delete_message:
+      name: Delete tracked message
+      description: If enabled, also delete the currently tracked Discord message when removing the tracker.
+      selector:
+        boolean:

@@ -161,7 +161,7 @@ function Resolve-AutoBumpType {
     $totalLines = $Insertions + $Deletions
     $coreFilesTouched = $false
     foreach ($path in $ChangedFiles) {
-        if ($path -match 'custom_components/discord_apichatter/(api|services|notify|config_flow|const|__init__)\.py') {
+        if ($path -match 'custom_components/discord_apichatter/(api|services|notify|config_flow|const|__init__|stream_tracker)\.py') {
             $coreFilesTouched = $true
             break
         }

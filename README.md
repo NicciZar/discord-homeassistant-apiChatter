@@ -7,6 +7,7 @@ It provides:
 - a config-flow based Discord bot setup
 - a standard `notify` service for sending messages
 - direct REST-backed services to **send**, **edit**, and **delete** messages
+- persistent **tracked stream updates** for Twitch-style stream sensors
 - a release helper script under `scripts/release.ps1`
 
 ## What makes this different
@@ -95,6 +96,39 @@ data:
       description: "Motion detected"
       color: 16711680
 ```
+
+## Automatic Twitch stream tracking
+
+You can now configure stream trackers directly from the Home Assistant UI:
+
+1. Open **Settings → Devices & Services**.
+2. Open **Discord API Chatter**.
+3. Select **Configure**.
+4. Choose **Add stream tracker**.
+5. Pick your Twitch Helix entity and the Discord channel.
+
+Behavior:
+- when the stream goes **live**, a **new** Discord message is posted
+- when the **title** or **game/category** changes, that same Discord message is **edited**
+- when the stream goes **offline**, the same Discord message is **edited** to show offline status
+- each tracked streamer/channel pair keeps its own saved `message_id`, so multiple streamers are supported
+
+The UI also lets you customize the live/update/offline templates with variables such as:
+- `{{ name }}`
+- `{{ title }}`
+- `{{ game }}`
+- `{{ viewers }}`
+- `{{ started_at }}`
+- `{{ stream_duration_human }}`
+- `{{ stream_duration_seconds }}`
+- `{{ url }}`
+- `{{ thumbnail_url }}`
+- `{{ stream_picture }}`
+- `{{ channel_picture }}`
+
+When Twitch provides artwork, the tracker also attaches the stream thumbnail automatically as a Discord embed image, and it now calculates how long the stream has been live for update/offline messages.
+
+The `track_stream` / `untrack_stream` services still exist for advanced use, but they are no longer required for normal setup.
 
 ## Release helper
 
