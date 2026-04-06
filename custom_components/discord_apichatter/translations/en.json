@@ -39,16 +39,45 @@
       },
       "add_tracker": {
         "title": "Add stream tracker",
-        "description": "Pick the Twitch entity and customize the Discord message templates. Available template variables: `name`, `title`, `game`, `viewers`, `started_at`, `stream_duration_human`, `stream_duration_seconds`, `url`, `thumbnail_url`, `stream_picture`, `channel_picture`, `state`, `entity_id`, `tracker_id`."
+        "description": "Choose the Twitch entity first. The Discord channel ID is optional and can be left empty to use the default channel. Then adjust when the message should update and, if wanted, customize the three Discord templates. Available template variables: `name`, `title`, `game`, `viewers`, `started_at`, `stream_duration_human`, `stream_duration_seconds`, `url`, `thumbnail_url`, `stream_picture`, `channel_picture`, `state`, `entity_id`, `tracker_id`.",
+        "data": {
+          "entity_id": "Twitch stream entity",
+          "channel_id": "Discord channel ID (optional)",
+          "sync_now": "Sync immediately if the streamer is already live",
+          "update_on_title_change": "Update the Discord message when the stream title changes",
+          "update_on_game_change": "Update the Discord message when the game/category changes",
+          "live_template": "Live message template",
+          "update_template": "Update message template",
+          "offline_template": "Offline message template"
+        }
       },
       "edit_tracker_select": {
-        "title": "Select stream tracker"
+        "title": "Select stream tracker",
+        "description": "Choose which tracked streamer you want to edit.",
+        "data": {
+          "tracker_id": "Tracked stream"
+        }
       },
       "edit_tracker": {
-        "title": "Edit stream tracker"
+        "title": "Edit stream tracker",
+        "description": "Update the stream entity, target Discord channel, update behavior, or message templates.",
+        "data": {
+          "entity_id": "Twitch stream entity",
+          "channel_id": "Discord channel ID (optional)",
+          "sync_now": "Sync immediately if the streamer is already live",
+          "update_on_title_change": "Update the Discord message when the stream title changes",
+          "update_on_game_change": "Update the Discord message when the game/category changes",
+          "live_template": "Live message template",
+          "update_template": "Update message template",
+          "offline_template": "Offline message template"
+        }
       },
       "remove_tracker": {
-        "title": "Remove stream tracker"
+        "title": "Remove stream tracker",
+        "description": "Choose which tracked streamer should no longer update Discord automatically.",
+        "data": {
+          "tracker_id": "Tracked stream"
+        }
       }
     }
   }
