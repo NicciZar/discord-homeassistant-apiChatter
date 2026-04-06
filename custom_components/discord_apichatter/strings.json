@@ -44,7 +44,6 @@
           "entity_id": "Twitch stream entity",
           "channel_id": "Discord channel ID (optional)",
           "sync_now": "Sync immediately if the streamer is already live",
-          "reset_templates_to_default": "Reset all templates to the current defaults on save",
           "update_on_title_change": "Update the Discord message when the stream title changes",
           "update_on_game_change": "Update the Discord message when the game/category changes",
           "live_template": "Live message template",
@@ -59,6 +58,14 @@
           "tracker_id": "Tracked stream"
         }
       },
+      "edit_tracker_actions": {
+        "title": "Edit stream tracker",
+        "description": "Choose what you want to do for `{entity_id}`.",
+        "menu_options": {
+          "edit_tracker": "Edit tracker settings",
+          "confirm_reset_templates": "Reset templates to defaults"
+        }
+      },
       "edit_tracker": {
         "title": "Edit stream tracker",
         "description": "Update the stream entity, target Discord channel, update behavior, or message templates.",
@@ -66,7 +73,6 @@
           "entity_id": "Twitch stream entity",
           "channel_id": "Discord channel ID (optional)",
           "sync_now": "Sync immediately if the streamer is already live",
-          "reset_templates_to_default": "Reset all templates to the current defaults on save",
           "update_on_title_change": "Update the Discord message when the stream title changes",
           "update_on_game_change": "Update the Discord message when the game/category changes",
           "live_template": "Live message template",
