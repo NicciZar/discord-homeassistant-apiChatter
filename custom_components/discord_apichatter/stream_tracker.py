@@ -504,6 +504,11 @@ class StreamTrackerManager:
         )
         stream_duration = self._calculate_stream_duration(started_at)
 
+        stream_url = self._coalesce_text(
+            state.attributes.get("url") or state.attributes.get("stream_url"),
+            tracker.get("url") or f"https://www.twitch.tv/{object_id}",
+        )
+
         return {
             "entity_id": entity_id,
             "tracker_id": tracker_id,
@@ -525,7 +530,7 @@ class StreamTrackerManager:
             "channel_picture": channel_picture,
             "stream_picture": thumbnail_url,
             "thumbnail_url": thumbnail_url,
-            "url": f"https://www.twitch.tv/{object_id}",
+            "url": stream_url,
         }
 
     def _resolve_client(self, tracker: dict[str, Any]) -> DiscordApiClient:

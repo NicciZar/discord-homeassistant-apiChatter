@@ -27,12 +27,16 @@
     }
   },
   "options": {
+    "error": {
+      "test_message_failed": "The Discord test message could not be sent. Check the channel ID and fake values."
+    },
     "step": {
       "init": {
         "title": "Manage tracked streams",
-        "description": "Create or remove automatic Discord updates for Twitch-style stream entities.",
+        "description": "Create, test, or remove automatic Discord updates for Twitch-style stream entities.",
         "menu_options": {
           "add_tracker": "Add stream tracker",
+          "test_message": "Test live/update/offline messages",
           "edit_tracker_select": "Edit stream tracker",
           "remove_tracker": "Remove stream tracker"
         }
@@ -63,6 +67,7 @@
         "description": "Choose what you want to do for `{entity_id}`.",
         "menu_options": {
           "edit_tracker": "Edit tracker settings",
+          "test_message": "Test this tracker's messages",
           "confirm_reset_templates": "Reset templates to defaults"
         }
       },
@@ -78,6 +83,23 @@
           "live_template": "Live message template",
           "update_template": "Update message template",
           "offline_template": "Offline message template"
+        }
+      },
+      "test_message": {
+        "title": "Test Discord messages",
+        "description": "Send a fake live, update, or offline message to Discord. The last channel, fake stream data, and test message ID are remembered so you can reopen this screen and continue testing start/update/stop behavior. Leave the channel empty to use the default channel `{default_channel}`.",
+        "data": {
+          "channel_id": "Discord channel ID (optional)",
+          "entity_id": "Fake Twitch entity ID",
+          "test_name": "Displayed streamer name",
+          "test_action": "Which test message to send",
+          "test_title": "Fake stream title",
+          "test_game": "Fake game/category",
+          "test_viewers": "Fake viewer count",
+          "test_started_at": "Fake started_at (ISO timestamp, optional)",
+          "url": "Stream URL (optional)",
+          "test_thumbnail_url": "Stream preview image URL (optional)",
+          "test_channel_picture": "Channel avatar URL (optional)"
         }
       },
       "remove_tracker": {

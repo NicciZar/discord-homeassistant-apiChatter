@@ -18,6 +18,7 @@ STORAGE_KEY: Final = f"{DOMAIN}_tracked_streams"
 STORAGE_VERSION: Final = 1
 
 CONF_DEFAULT_CHANNEL: Final = "default_channel"
+CONF_TEST_MESSAGE: Final = "test_message"
 CONF_TRACKERS: Final = "trackers"
 
 ATTR_ALLOWED_MENTIONS: Final = "allowed_mentions"

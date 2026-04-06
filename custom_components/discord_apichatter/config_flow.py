@@ -14,8 +14,9 @@ from homeassistant.config_entries import (
     ConfigFlowResult,
     OptionsFlow,
 )
-from homeassistant.const import ATTR_ENTITY_ID, CONF_API_TOKEN, CONF_NAME
-from homeassistant.core import callback
+from homeassistant.const import ATTR_ENTITY_ID, CONF_API_TOKEN, CONF_NAME, CONF_URL
+from homeassistant.core import State, callback
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.selector import (
     BooleanSelector,
@@ -28,13 +29,14 @@ from homeassistant.helpers.selector import (
     TextSelector,
     TextSelectorConfig,
 )
-from homeassistant.util import slugify
+from homeassistant.util import dt as dt_util, slugify
 
 from .api import DiscordApiClient, DiscordApiError, DiscordAuthenticationError
 from .const import (
     ATTR_CHANNEL_ID,
     ATTR_ENTRY_ID,
     ATTR_LIVE_TEMPLATE,
+    ATTR_MESSAGE_ID,
     ATTR_OFFLINE_TEMPLATE,
     ATTR_SYNC_NOW,
     ATTR_TRACKER_ID,
@@ -42,7 +44,9 @@ from .const import (
     ATTR_UPDATE_ON_TITLE_CHANGE,
     ATTR_UPDATE_TEMPLATE,
     CONF_DEFAULT_CHANNEL,
+    CONF_TEST_MESSAGE,
     CONF_TRACKERS,
+    DATA_ENTRIES,
     DATA_STREAM_TRACKER,
     DEFAULT_NAME,
     DOMAIN,
@@ -54,6 +58,19 @@ from .stream_tracker import (
 )
 
 _LOGGER = logging.getLogger(__name__)
+
+TEST_ACTION = "test_action"
+TEST_NAME = "test_name"
+TEST_TITLE = "test_title"
+TEST_GAME = "test_game"
+TEST_VIEWERS = "test_viewers"
+TEST_STARTED_AT = "test_started_at"
+TEST_THUMBNAIL_URL = "test_thumbnail_url"
+TEST_CHANNEL_PICTURE = "test_channel_picture"
+TEST_LAST_TITLE = "last_title"
+TEST_LAST_GAME = "last_game"
+TEST_LAST_VIEWERS = "last_viewers"
+TEST_LAST_STARTED_AT = "last_started_at"
 
 CONFIG_SCHEMA = vol.Schema(
     {
@@ -101,6 +118,72 @@ def _build_tracker_schema(defaults: Mapping[str, Any] | None = None) -> vol.Sche
                 ATTR_OFFLINE_TEMPLATE,
                 default=defaults.get(ATTR_OFFLINE_TEMPLATE, DEFAULT_OFFLINE_TEMPLATE),
             ): TextSelector(TextSelectorConfig(multiline=True)),
+        }
+    )
+
+
+def _build_test_message_schema(defaults: Mapping[str, Any] | None = None) -> vol.Schema:
+    """Build the options-flow schema for sending fake test messages."""
+    defaults = defaults or {}
+
+    return vol.Schema(
+        {
+            vol.Optional(
+                ATTR_CHANNEL_ID,
+                default=defaults.get(ATTR_CHANNEL_ID, ""),
+            ): TextSelector(TextSelectorConfig()),
+            vol.Optional(
+                ATTR_ENTITY_ID,
+                default=defaults.get(ATTR_ENTITY_ID, "sensor.test_streamer"),
+            ): TextSelector(TextSelectorConfig()),
+            vol.Optional(
+                TEST_NAME,
+                default=defaults.get(TEST_NAME, "Test Streamer"),
+            ): TextSelector(TextSelectorConfig()),
+            vol.Required(
+                TEST_ACTION,
+                default=defaults.get(TEST_ACTION, "live"),
+            ): SelectSelector(
+                SelectSelectorConfig(
+                    options=[
+                        SelectOptionDict(value="live", label="Send live/start message"),
+                        SelectOptionDict(value="update", label="Send update message"),
+                        SelectOptionDict(value="offline", label="Send offline/stop message"),
+                    ],
+                    mode=SelectSelectorMode.DROPDOWN,
+                )
+            ),
+            vol.Optional(
+                TEST_TITLE,
+                default=defaults.get(TEST_TITLE, "Testing Discord API Chatter"),
+            ): TextSelector(TextSelectorConfig()),
+            vol.Optional(
+                TEST_GAME,
+                default=defaults.get(TEST_GAME, "Just Chatting"),
+            ): TextSelector(TextSelectorConfig()),
+            vol.Optional(
+                TEST_VIEWERS,
+                default=defaults.get(TEST_VIEWERS, "42"),
+            ): TextSelector(TextSelectorConfig()),
+            vol.Optional(
+                TEST_STARTED_AT,
+                default=defaults.get(
+                    TEST_STARTED_AT,
+                    dt_util.utcnow().replace(microsecond=0).isoformat(),
+                ),
+            ): TextSelector(TextSelectorConfig()),
+            vol.Optional(
+                CONF_URL,
+                default=defaults.get(CONF_URL, "https://www.twitch.tv/test_streamer"),
+            ): TextSelector(TextSelectorConfig()),
+            vol.Optional(
+                TEST_THUMBNAIL_URL,
+                default=defaults.get(TEST_THUMBNAIL_URL, ""),
+            ): TextSelector(TextSelectorConfig()),
+            vol.Optional(
+                TEST_CHANNEL_PICTURE,
+                default=defaults.get(TEST_CHANNEL_PICTURE, ""),
+            ): TextSelector(TextSelectorConfig()),
         }
     )
 
@@ -210,7 +293,7 @@ class DiscordApiChatterOptionsFlow(OptionsFlow):
         user_input: dict[str, Any] | None = None,
     ) -> ConfigFlowResult:
         """Show the tracker management menu."""
-        menu_options = ["add_tracker"]
+        menu_options = ["add_tracker", "test_message"]
         if self._get_trackers():
             menu_options.extend(["edit_tracker_select", "remove_tracker"])
 
@@ -227,6 +310,41 @@ class DiscordApiChatterOptionsFlow(OptionsFlow):
         return self.async_show_form(
             step_id="add_tracker",
             data_schema=_build_tracker_schema(),
+        )
+
+    async def async_step_test_message(
+        self,
+        user_input: dict[str, Any] | None = None,
+    ) -> ConfigFlowResult:
+        """Send a fake live, update, or offline message for previewing."""
+        errors: dict[str, str] = {}
+        defaults = self._get_test_message_defaults(user_input)
+
+        if user_input is not None:
+            try:
+                normalized = self._normalize_test_message_data(user_input)
+                saved_test_data = await self._async_run_test_message(normalized)
+            except HomeAssistantError as err:
+                _LOGGER.warning("Failed to send Discord test message: %s", err)
+                errors["base"] = "test_message_failed"
+            except DiscordApiError as err:
+                _LOGGER.warning("Discord API rejected the test message: %s", err)
+                errors["base"] = "test_message_failed"
+            else:
+                return self.async_create_entry(
+                    title="",
+                    data=self.config_entry.options | {CONF_TEST_MESSAGE: saved_test_data},
+                )
+
+        return self.async_show_form(
+            step_id="test_message",
+            data_schema=_build_test_message_schema(defaults),
+            errors=errors,
+            description_placeholders={
+                "default_channel": str(
+                    self.config_entry.data.get(CONF_DEFAULT_CHANNEL) or "not set"
+                )
+            },
         )
 
     async def async_step_edit_tracker_select(
@@ -273,7 +391,7 @@ class DiscordApiChatterOptionsFlow(OptionsFlow):
 
         return self.async_show_menu(
             step_id="edit_tracker_actions",
-            menu_options=["edit_tracker", "confirm_reset_templates"],
+            menu_options=["edit_tracker", "test_message", "confirm_reset_templates"],
             description_placeholders={"entity_id": str(tracker[ATTR_ENTITY_ID])},
         )
 
@@ -378,6 +496,190 @@ class DiscordApiChatterOptionsFlow(OptionsFlow):
                 }
             ),
         )
+
+    def _get_test_message_defaults(
+        self,
+        overrides: Mapping[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Return remembered defaults for the test-message UI."""
+        saved = dict(self.config_entry.options.get(CONF_TEST_MESSAGE, {}))
+        defaults: dict[str, Any] = {
+            ATTR_CHANNEL_ID: (
+                saved.get(ATTR_CHANNEL_ID)
+                or self.config_entry.data.get(CONF_DEFAULT_CHANNEL)
+                or ""
+            ),
+            ATTR_ENTITY_ID: saved.get(ATTR_ENTITY_ID, "sensor.test_streamer"),
+            TEST_NAME: saved.get(TEST_NAME, "Test Streamer"),
+            TEST_ACTION: saved.get(TEST_ACTION, "live"),
+            TEST_TITLE: saved.get(TEST_TITLE, "Testing Discord API Chatter"),
+            TEST_GAME: saved.get(TEST_GAME, "Just Chatting"),
+            TEST_VIEWERS: str(saved.get(TEST_VIEWERS, "42") or ""),
+            TEST_STARTED_AT: saved.get(
+                TEST_STARTED_AT,
+                dt_util.utcnow().replace(microsecond=0).isoformat(),
+            ),
+            CONF_URL: saved.get(CONF_URL, "https://www.twitch.tv/test_streamer"),
+            TEST_THUMBNAIL_URL: saved.get(TEST_THUMBNAIL_URL, ""),
+            TEST_CHANNEL_PICTURE: saved.get(TEST_CHANNEL_PICTURE, ""),
+        }
+
+        if overrides is not None:
+            for key, value in overrides.items():
+                defaults[key] = "" if value is None else value
+
+        return defaults
+
+    def _normalize_test_message_data(
+        self,
+        user_input: Mapping[str, Any],
+    ) -> dict[str, Any]:
+        """Normalize test-message form input for storage and sending."""
+        action = str(user_input.get(TEST_ACTION, "live")).strip().lower()
+        if action not in {"live", "update", "offline"}:
+            raise HomeAssistantError("Invalid test action selected.")
+
+        viewers_raw = str(user_input.get(TEST_VIEWERS, "")).strip()
+        viewers: int | None = None
+        if viewers_raw:
+            try:
+                viewers = int(viewers_raw)
+            except ValueError as err:
+                raise HomeAssistantError(
+                    "The viewers field must be a whole number."
+                ) from err
+
+        return {
+            ATTR_CHANNEL_ID: str(user_input.get(ATTR_CHANNEL_ID, "")).strip() or None,
+            ATTR_ENTITY_ID: str(
+                user_input.get(ATTR_ENTITY_ID, "sensor.test_streamer")
+            ).strip()
+            or "sensor.test_streamer",
+            TEST_NAME: str(user_input.get(TEST_NAME, "Test Streamer")).strip()
+            or "Test Streamer",
+            TEST_ACTION: action,
+            TEST_TITLE: str(user_input.get(TEST_TITLE, "")).strip() or None,
+            TEST_GAME: str(user_input.get(TEST_GAME, "")).strip() or None,
+            TEST_VIEWERS: viewers,
+            TEST_STARTED_AT: str(user_input.get(TEST_STARTED_AT, "")).strip() or None,
+            CONF_URL: str(user_input.get(CONF_URL, "")).strip() or None,
+            TEST_THUMBNAIL_URL: str(
+                user_input.get(TEST_THUMBNAIL_URL, "")
+            ).strip()
+            or None,
+            TEST_CHANNEL_PICTURE: str(
+                user_input.get(TEST_CHANNEL_PICTURE, "")
+            ).strip()
+            or None,
+        }
+
+    async def _async_run_test_message(
+        self,
+        test_data: Mapping[str, Any],
+    ) -> dict[str, Any]:
+        """Send or edit a remembered fake Discord test message."""
+        entry_data = self.hass.data.get(DOMAIN, {}).get(DATA_ENTRIES, {}).get(
+            self.config_entry.entry_id
+        )
+        if entry_data is None:
+            raise HomeAssistantError("The Discord config entry is not loaded.")
+
+        manager = self.hass.data.get(DOMAIN, {}).get(DATA_STREAM_TRACKER)
+        if manager is None:
+            raise HomeAssistantError("The stream tracker manager is not available.")
+
+        client = entry_data["client"]
+        saved = dict(self.config_entry.options.get(CONF_TEST_MESSAGE, {}))
+        channel_id = test_data.get(ATTR_CHANNEL_ID) or self.config_entry.data.get(
+            CONF_DEFAULT_CHANNEL
+        )
+        if not channel_id:
+            raise HomeAssistantError(
+                "No test channel ID was supplied and no default channel is configured."
+            )
+
+        selected_tracker = self._get_selected_tracker()
+        tracker_templates = selected_tracker or {}
+        fake_tracker = {
+            ATTR_ENTITY_ID: test_data[ATTR_ENTITY_ID],
+            ATTR_LIVE_TEMPLATE: tracker_templates.get(
+                ATTR_LIVE_TEMPLATE, DEFAULT_LIVE_TEMPLATE
+            ),
+            ATTR_UPDATE_TEMPLATE: tracker_templates.get(
+                ATTR_UPDATE_TEMPLATE, DEFAULT_UPDATE_TEMPLATE
+            ),
+            ATTR_OFFLINE_TEMPLATE: tracker_templates.get(
+                ATTR_OFFLINE_TEMPLATE, DEFAULT_OFFLINE_TEMPLATE
+            ),
+            "last_title": saved.get(TEST_LAST_TITLE),
+            "last_game": saved.get(TEST_LAST_GAME),
+            "last_viewers": saved.get(TEST_LAST_VIEWERS),
+            "last_started_at": saved.get(TEST_LAST_STARTED_AT),
+            "last_thumbnail_url": test_data.get(TEST_THUMBNAIL_URL),
+            "last_channel_picture": test_data.get(TEST_CHANNEL_PICTURE),
+            "url": test_data.get(CONF_URL),
+        }
+
+        state = State(
+            test_data[ATTR_ENTITY_ID],
+            "offline" if test_data[TEST_ACTION] == "offline" else "streaming",
+            {
+                "friendly_name": test_data[TEST_NAME],
+                "title": test_data.get(TEST_TITLE),
+                "game": test_data.get(TEST_GAME),
+                "game_name": test_data.get(TEST_GAME),
+                "viewers": test_data.get(TEST_VIEWERS),
+                "started_at": test_data.get(TEST_STARTED_AT),
+                "thumbnail_url": test_data.get(TEST_THUMBNAIL_URL),
+                "entity_picture": test_data.get(TEST_THUMBNAIL_URL),
+                "channel_picture": test_data.get(TEST_CHANNEL_PICTURE),
+                "url": test_data.get(CONF_URL),
+            },
+        )
+
+        content = manager._render_message(
+            fake_tracker,
+            "test_message_preview",
+            state,
+            str(test_data[TEST_ACTION]),
+        )
+        embeds = manager._build_embeds(
+            test_data.get(TEST_THUMBNAIL_URL),
+            test_data.get(TEST_CHANNEL_PICTURE),
+        )
+
+        message_id = saved.get(ATTR_MESSAGE_ID)
+        if test_data[TEST_ACTION] == "live" or not message_id:
+            response = await client.async_send_message(
+                str(channel_id),
+                content,
+                embeds=embeds,
+            )
+            message_id = response.get("id", message_id)
+        else:
+            try:
+                response = await client.async_edit_message(
+                    str(channel_id),
+                    str(message_id),
+                    content=content,
+                    embeds=embeds,
+                )
+            except DiscordApiError:
+                response = await client.async_send_message(
+                    str(channel_id),
+                    content,
+                    embeds=embeds,
+                )
+                message_id = response.get("id", message_id)
+
+        return saved | dict(test_data) | {
+            ATTR_CHANNEL_ID: str(channel_id),
+            ATTR_MESSAGE_ID: message_id,
+            TEST_LAST_TITLE: test_data.get(TEST_TITLE),
+            TEST_LAST_GAME: test_data.get(TEST_GAME),
+            TEST_LAST_VIEWERS: test_data.get(TEST_VIEWERS),
+            TEST_LAST_STARTED_AT: test_data.get(TEST_STARTED_AT),
+        }
 
     def _get_trackers(self) -> list[dict[str, Any]]:
         """Return the currently known trackers for this config entry."""
