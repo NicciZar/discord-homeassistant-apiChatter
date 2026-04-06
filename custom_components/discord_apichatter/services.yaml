@@ -1,0 +1,104 @@
+send_message:
+  name: Send message
+  description: Send a Discord message by calling the official Discord REST API with bot credentials.
+  fields:
+    entry_id:
+      name: Config entry ID
+      description: Optional when more than one Discord API Chatter bot is configured.
+      example: 01JABCDEF23456789XYZ
+      selector:
+        text:
+    channel_id:
+      name: Channel ID
+      description: Discord channel ID to send to. If omitted, the configured default channel is used.
+      example: "123456789012345678"
+      selector:
+        text:
+    message:
+      name: Message
+      description: Text content to send.
+      required: true
+      example: Home Assistant says hello 👋
+      selector:
+        text:
+          multiline: true
+    tts:
+      name: Text-to-speech
+      description: Whether Discord should send the message as TTS.
+      selector:
+        boolean:
+    embeds:
+      name: Embeds
+      description: Optional Discord embed payload or list of embed payloads.
+      example:
+        - title: Motion detected
+          description: Front door camera triggered.
+          color: 16711680
+      selector:
+        object:
+    allowed_mentions:
+      name: Allowed mentions
+      description: Optional Discord allowed_mentions payload.
+      selector:
+        object:
+
+edit_message:
+  name: Edit message
+  description: Edit a previously sent Discord message by message ID.
+  fields:
+    entry_id:
+      name: Config entry ID
+      selector:
+        text:
+    channel_id:
+      name: Channel ID
+      description: Required unless a default channel is configured.
+      example: "123456789012345678"
+      selector:
+        text:
+    message_id:
+      name: Message ID
+      description: Discord message snowflake to edit.
+      required: true
+      example: "123456789012345679"
+      selector:
+        text:
+    content:
+      name: Content
+      description: New message content.
+      example: Updated message text
+      selector:
+        text:
+          multiline: true
+    embeds:
+      name: Embeds
+      description: Optional replacement embeds payload.
+      selector:
+        object:
+    allowed_mentions:
+      name: Allowed mentions
+      description: Optional Discord allowed_mentions payload.
+      selector:
+        object:
+
+delete_message:
+  name: Delete message
+  description: Delete a Discord message by message ID.
+  fields:
+    entry_id:
+      name: Config entry ID
+      selector:
+        text:
+    channel_id:
+      name: Channel ID
+      description: Required unless a default channel is configured.
+      example: "123456789012345678"
+      selector:
+        text:
+    message_id:
+      name: Message ID
+      description: Discord message snowflake to delete.
+      required: true
+      example: "123456789012345679"
+      selector:
+        text:

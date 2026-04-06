@@ -1,0 +1,29 @@
+{
+  "title": "Discord API Chatter",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connect Discord bot",
+        "description": "Enter the bot token from the Discord developer portal. User credentials are not supported.",
+        "data": {
+          "api_token": "Bot token",
+          "default_channel": "Default channel ID (optional)"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Reconnect Discord bot",
+        "data": {
+          "api_token": "New bot token"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "The Discord bot token is invalid.",
+      "cannot_connect": "Home Assistant could not reach the Discord API.",
+      "unknown": "An unexpected error occurred."
+    },
+    "abort": {
+      "already_configured": "This Discord bot is already configured."
+    }
+  }
+}
