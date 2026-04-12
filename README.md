@@ -1,47 +1,70 @@
 # Discord API Chatter for Home Assistant
 
-A custom Home Assistant integration that talks to Discord through the **official Discord REST API** using **bot credentials only**.
+`Discord API Chatter` is a Home Assistant custom integration that talks to Discord through the **official Discord REST API** using **bot credentials only**.
 
-It provides:
+It is designed for users who want a lightweight Discord bot integration with:
 
-- a config-flow based Discord bot setup
-- a standard `notify` service for sending messages
-- direct REST-backed services to **send**, **edit**, and **delete** messages
-- persistent **tracked stream updates** for Twitch-style stream sensors
-- a release helper script under `scripts/release.ps1`
+- ✅ config-flow setup from the Home Assistant UI
+- ✅ `notify` support for simple notifications
+- ✅ direct services to **send**, **edit**, and **delete** Discord messages
+- ✅ persistent **stream tracker** support for Twitch-style sensors
+- ✅ a built-in **test UI** for fake live / update / offline previews
+- ✅ a PowerShell release helper in `scripts/release.ps1`
 
-## What makes this different
+---
 
-This integration does **not** use user credentials.
-It uses a Discord **bot token** and the standard REST endpoints:
+## Features
+
+Unlike integrations that rely on user credentials, this one uses a Discord **bot token** and the normal REST endpoints only:
 
 - `POST /channels/{channel_id}/messages`
 - `PATCH /channels/{channel_id}/messages/{message_id}`
 - `DELETE /channels/{channel_id}/messages/{message_id}`
 
+That makes it suitable for:
+
+- sending notifications from Home Assistant
+- editing the same message over time
+- deleting messages when needed
+- keeping a single Discord post in sync with a live stream status
+
+---
+
 ## Installation
 
-1. Copy `custom_components/discord_apichatter` into your Home Assistant `custom_components` folder.
+### Manual installation
+
+1. Copy `custom_components/discord_apichatter` into your Home Assistant `custom_components` directory.
 2. Restart Home Assistant.
-3. Go to **Settings → Devices & Services → Add Integration**.
-4. Add **Discord API Chatter**.
-5. Paste your Discord **bot token** and optionally a **default channel ID**.
+3. Open **Settings → Devices & Services**.
+4. Click **Add Integration**.
+5. Search for **Discord API Chatter**.
+6. Enter your Discord **bot token** and optionally a **default channel ID**.
+
+---
 
 ## Discord bot setup
 
-This follows the same general Discord bot setup flow as the official integration:
-
-- create a Discord application
-- create a bot user
-- invite it to your server
-- grant it permission to send/manage messages in the target channel
-- copy the bot token and channel ID
+1. Create a Discord application in the [Discord Developer Portal](https://discord.com/developers/applications).
+2. Add a **Bot** to that application.
+3. Copy the bot token.
+4. Invite the bot to your server.
+5. Give it permission to:
+   - view the channel
+   - send messages
+   - embed links
+   - manage messages
+6. Copy the target Discord channel ID.
 
 Reference: <https://www.home-assistant.io/integrations/discord>
 
-## Usage
+> User credentials are **not** supported by this integration.
 
-### 1) Send a message via the integration service
+---
+
+## Basic usage
+
+### Send a message
 
 ```yaml
 service: discord_apichatter.send_message
@@ -51,9 +74,9 @@ data:
   message: "Hello from Home Assistant"
 ```
 
-Returned response data includes the created `message_id`.
+The response includes the created `message_id`.
 
-### 2) Edit a message
+### Edit a message
 
 ```yaml
 service: discord_apichatter.edit_message
@@ -63,7 +86,7 @@ data:
   content: "Updated by Home Assistant"
 ```
 
-### 3) Delete a message
+### Delete a message
 
 ```yaml
 service: discord_apichatter.delete_message
@@ -72,7 +95,7 @@ data:
   message_id: "{{ discord_result.message_id }}"
 ```
 
-### 4) Use the notify service
+### Use the `notify` platform
 
 The notify service name is typically based on the connected bot name, for example `notify.my_discord_bot`.
 
@@ -84,7 +107,7 @@ data:
     - "123456789012345678"
 ```
 
-You can also send embeds:
+### Send embeds
 
 ```yaml
 service: discord_apichatter.send_message
@@ -97,44 +120,155 @@ data:
       color: 16711680
 ```
 
-## Automatic Twitch stream tracking
+---
 
-You can now configure stream trackers directly from the Home Assistant UI:
+## Stream tracker UI
+
+Twitch-style stream entities for this feature can be provided by [`ha_twitch_helix`](https://github.com/Radioh/ha_twitch_helix).
+
+You can configure tracked stream messages directly from the Home Assistant UI:
 
 1. Open **Settings → Devices & Services**.
 2. Open **Discord API Chatter**.
-3. Select **Configure**.
+3. Click **Configure**.
 4. Choose **Add stream tracker**.
-5. Pick your Twitch Helix entity and the Discord channel.
+5. Pick your Twitch-style stream sensor and target Discord channel.
 
-Behavior:
-- when the stream goes **live**, a **new** Discord message is posted
-- when the **title** or **game/category** changes, that same Discord message is **edited**
-- when the stream goes **offline**, the same Discord message is **edited** to show offline status
-- each tracked streamer/channel pair keeps its own saved `message_id`, so multiple streamers are supported
+### Tracker behavior
 
-The UI also lets you customize the live/update/offline templates with variables such as:
-- `{{ name }}`
-- `{{ title }}` / `{{ previous_title }}` / `{{ title_changed }}`
-- `{{ game }}` / `{{ previous_game }}` / `{{ game_changed }}`
-- `{{ viewers }}`
-- `{{ started_at }}`
-- `{{ stream_duration_human }}`
-- `{{ stream_duration_seconds }}`
-- `{{ url }}`
-- `{{ thumbnail_url }}`
-- `{{ stream_picture }}`
-- `{{ channel_picture }}`
+For each tracked entity/channel pair:
 
-When Twitch provides artwork, the tracker also attaches the stream thumbnail automatically as a Discord embed image, and it now calculates how long the stream has been live for update/offline messages.
+- when the stream goes **live**, a new Discord message is posted
+- when the **title** or **game/category** changes, that same message is edited
+- when the stream goes **offline**, the same message is edited to its offline state
+- the tracker includes independent switches to control image embeds for live, update, and offline events
+- the integration remembers the `message_id` so updates continue across restarts
 
-The `track_stream` / `untrack_stream` services still exist for advanced use, but they are no longer required for normal setup.
+Multiple streamers and multiple channels are supported.
+
+### Tracker templates
+
+You can customize the live, update, and offline messages with Jinja templates.
+
+Common template variables include:
+
+| Variable | Meaning |
+|---|---|
+| `{{ name }}` | Streamer display name |
+| `{{ title }}` | Current stream title |
+| `{{ previous_title }}` | Previous title |
+| `{{ title_changed }}` | Whether the title changed |
+| `{{ game }}` | Current game/category |
+| `{{ previous_game }}` | Previous game/category |
+| `{{ game_changed }}` | Whether the game changed |
+| `{{ viewers }}` | Viewer count |
+| `{{ started_at }}` | Stream start timestamp |
+| `{{ stream_duration_human }}` | Friendly duration like `2h 14m 08s` |
+| `{{ stream_duration_seconds }}` | Raw duration in seconds |
+| `{{ url }}` | Stream URL |
+| `{{ thumbnail_url }}` / `{{ stream_picture }}` | Stream preview image |
+| `{{ channel_picture }}` | Channel avatar |
+| `{{ entity_id }}` | Home Assistant entity ID |
+| `{{ tracker_id }}` | Internal tracker identifier |
+
+If Twitch artwork is available, the integration automatically includes it as a Discord embed image.
+
+---
+
+## Test message UI
+
+A built-in tester is available from the same **Configure** menu.
+
+Use **`Test live/update/offline messages`** to send fake preview messages without waiting for a real stream event.
+
+The tester lets you enter and remember:
+
+- Discord `channel_id`
+- fake entity ID
+- streamer name
+- title
+- game/category
+- viewer count
+- `started_at`
+- stream URL
+- thumbnail URL
+- channel avatar URL
+
+### Why this is useful
+
+The test UI remembers the last fake values **and** the last test `message_id`, so you can simulate a full lifecycle:
+
+1. send a **live/start** message
+2. reopen the tester
+3. change the fake title or game
+4. send an **update** message
+5. send an **offline/stop** message
+
+This makes it easy to preview formatting before using a real tracker.
+
+---
+
+## Advanced services
+
+The UI covers normal setup, but the following services are also available for advanced use:
+
+- `discord_apichatter.send_message`
+- `discord_apichatter.edit_message`
+- `discord_apichatter.delete_message`
+- `discord_apichatter.track_stream`
+- `discord_apichatter.untrack_stream`
+
+See `custom_components/discord_apichatter/services.yaml` for the full field list.
+
+---
+
+## Troubleshooting
+
+### Labels or translation text look missing
+
+After updating the integration, Home Assistant or the browser may still show cached strings.
+
+Try:
+
+- closing and reopening the Configure dialog
+- refreshing the page
+- restarting Home Assistant if needed
+
+### Messages are not sent
+
+Check that:
+
+- the bot token is valid
+- the bot is in the server
+- the channel ID is correct
+- the bot has permission to send and manage messages
+
+### Stream tracker does not update as expected
+
+Check that your stream entity:
+
+- exists in Home Assistant
+- changes state between live/offline properly
+- exposes attributes like `title`, `game`, `started_at`, and optionally artwork URLs
+
+---
 
 ## Release helper
 
-Use the included PowerShell script to bump `manifest.json`, create a git tag, and optionally publish a GitHub release:
+The repository includes `scripts/release.ps1` to update `manifest.json`, create a git tag, and optionally publish a GitHub release.
+
+Examples:
 
 ```powershell
 .\scripts\release.ps1 -DryRun
 .\scripts\release.ps1 -BumpType patch
+.\scripts\release.ps1 -BumpType minor -SkipGitHubRelease
 ```
+
+---
+
+## Notes
+
+- Versioning is intended to be handled through `scripts/release.ps1`.
+- The integration is currently focused on Discord bot messaging and Twitch-style stream update workflows.
+

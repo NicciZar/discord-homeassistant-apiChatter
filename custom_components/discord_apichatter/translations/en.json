@@ -28,7 +28,9 @@
   },
   "options": {
     "error": {
-      "test_message_failed": "The Discord test message could not be sent. Check the channel ID and fake values."
+      "test_message_failed": "The Discord test message could not be sent. Check the channel ID and fake values.",
+      "channel_required": "Channel ID and channel name are required.",
+      "channel_exists": "A channel entry with this channel ID already exists."
     },
     "step": {
       "init": {
@@ -37,8 +39,48 @@
         "menu_options": {
           "add_tracker": "Add stream tracker",
           "test_message": "Test live/update/offline messages",
+          "manage_channels": "Manage Discord channel entries",
           "edit_tracker_select": "Edit stream tracker",
           "remove_tracker": "Remove stream tracker"
+        }
+      },
+      "manage_channels": {
+        "title": "Manage channel entries",
+        "description": "Add, edit, or remove reusable Discord channel entries for tracker dropdowns.",
+        "menu_options": {
+          "add_channel": "Add channel entry",
+          "edit_channel_select": "Edit channel entry",
+          "remove_channel": "Remove channel entry"
+        }
+      },
+      "add_channel": {
+        "title": "Add channel entry",
+        "description": "Create a reusable channel option shown in the tracker channel dropdown.",
+        "data": {
+          "channel_id": "Discord channel ID",
+          "channel_name": "Discord channel name"
+        }
+      },
+      "edit_channel_select": {
+        "title": "Select channel entry",
+        "description": "Choose which channel entry to edit.",
+        "data": {
+          "channel_id": "Channel entry"
+        }
+      },
+      "edit_channel": {
+        "title": "Edit channel entry",
+        "description": "Update the selected channel ID or channel name.",
+        "data": {
+          "channel_id": "Discord channel ID",
+          "channel_name": "Discord channel name"
+        }
+      },
+      "remove_channel": {
+        "title": "Remove channel entry",
+        "description": "Choose which channel entry to remove.",
+        "data": {
+          "channel_id": "Channel entry"
         }
       },
       "add_tracker": {
@@ -46,10 +88,13 @@
         "description": "Choose the Twitch entity first. The Discord channel ID is optional and can be left empty to use the default channel. Then adjust when the message should update and, if wanted, customize the three Discord templates. Available template variables: `name`, `title`, `previous_title`, `title_changed`, `game`, `previous_game`, `game_changed`, `viewers`, `started_at`, `stream_duration_human`, `stream_duration_seconds`, `url`, `thumbnail_url`, `stream_picture`, `channel_picture`, `state`, `entity_id`, `tracker_id`.",
         "data": {
           "entity_id": "Twitch stream entity",
-          "channel_id": "Discord channel ID (optional)",
+          "channel_id": "Discord channel entry (optional)",
           "sync_now": "Sync immediately if the streamer is already live",
           "update_on_title_change": "Update the Discord message when the stream title changes",
           "update_on_game_change": "Update the Discord message when the game/category changes",
+          "send_live_image": "Attach thumbnail/embed image when the stream starts",
+          "send_update_image": "Attach thumbnail/embed image for live update edits",
+          "send_offline_image": "Attach thumbnail/embed image when the stream goes offline",
           "live_template": "Live message template",
           "update_template": "Update message template",
           "offline_template": "Offline message template"
@@ -67,8 +112,43 @@
         "description": "Choose what you want to do for `{entity_id}`.",
         "menu_options": {
           "edit_tracker": "Edit tracker settings",
+          "preview_tracker_template": "Preview templates",
+          "tracker_health": "Tracker health",
+          "copy_tracker_diagnostics": "Copy diagnostics text",
           "test_message": "Test this tracker's messages",
           "confirm_reset_templates": "Reset templates to defaults"
+        }
+      },
+      "preview_tracker_template": {
+        "title": "Preview tracker templates",
+        "description": "Select which template to preview for `{entity_id}`.",
+        "menu_options": {
+          "preview_tracker_template_live": "Preview live template",
+          "preview_tracker_template_update": "Preview update template",
+          "preview_tracker_template_offline": "Preview offline template"
+        }
+      },
+      "preview_tracker_template_live": {
+        "title": "Live template preview",
+        "description": "Preview for `{entity_id}`:\n\n{preview}"
+      },
+      "preview_tracker_template_update": {
+        "title": "Update template preview",
+        "description": "Preview for `{entity_id}`:\n\n{preview}"
+      },
+      "preview_tracker_template_offline": {
+        "title": "Offline template preview",
+        "description": "Preview for `{entity_id}`:\n\n{preview}"
+      },
+      "tracker_health": {
+        "title": "Tracker health",
+        "description": "Entity: `{entity_id}`\nTracker ID: `{tracker_id}`\nChannel ID: `{channel_id}`\nMessage ID: `{message_id}`\nLast state: `{last_state}`\nLast action: `{last_action}`\nLast processed: `{last_processed_at}`\nLast error: `{last_error}`"
+      },
+      "copy_tracker_diagnostics": {
+        "title": "Copy diagnostics text",
+        "description": "Copy the diagnostics text for `{entity_id}` from the field below.",
+        "data": {
+          "tracker_diagnostics_text": "Diagnostics text"
         }
       },
       "edit_tracker": {
@@ -76,10 +156,13 @@
         "description": "Update the stream entity, target Discord channel, update behavior, or message templates.",
         "data": {
           "entity_id": "Twitch stream entity",
-          "channel_id": "Discord channel ID (optional)",
+          "channel_id": "Discord channel entry (optional)",
           "sync_now": "Sync immediately if the streamer is already live",
           "update_on_title_change": "Update the Discord message when the stream title changes",
           "update_on_game_change": "Update the Discord message when the game/category changes",
+          "send_live_image": "Attach thumbnail/embed image when the stream starts",
+          "send_update_image": "Attach thumbnail/embed image for live update edits",
+          "send_offline_image": "Attach thumbnail/embed image when the stream goes offline",
           "live_template": "Live message template",
           "update_template": "Update message template",
           "offline_template": "Offline message template"
@@ -89,7 +172,7 @@
         "title": "Test Discord messages",
         "description": "Send a fake live, update, or offline message to Discord. The last channel, fake stream data, and test message ID are remembered so you can reopen this screen and continue testing start/update/stop behavior. Leave the channel empty to use the default channel `{default_channel}`.",
         "data": {
-          "channel_id": "Discord channel ID (optional)",
+          "channel_id": "Discord channel entry (optional)",
           "entity_id": "Fake Twitch entity ID",
           "test_name": "Displayed streamer name",
           "test_action": "Which test message to send",
@@ -97,7 +180,16 @@
           "test_game": "Fake game/category",
           "test_viewers": "Fake viewer count",
           "test_started_at": "Fake started_at (ISO timestamp, optional)",
-          "url": "Stream URL (optional)",
+          "test_send_live_image": "Attach image for fake stream start",
+          "test_send_update_image": "Attach image for fake stream updates",
+          "test_send_offline_image": "Attach image for fake stream end",
+          "url": "Stream URL (optional)"
+        }
+      },
+      "test_message_images": {
+        "title": "Optional test images",
+        "description": "Image URLs are only requested because at least one image toggle is enabled. Leave either field empty to skip it.",
+        "data": {
           "test_thumbnail_url": "Stream preview image URL (optional)",
           "test_channel_picture": "Channel avatar URL (optional)"
         }

@@ -159,6 +159,21 @@ track_stream:
       description: Edit the tracked Discord message whenever the selected game/category changes.
       selector:
         boolean:
+    send_live_image:
+      name: Send live image
+      description: When enabled, include stream artwork embeds when the stream starts.
+      selector:
+        boolean:
+    send_update_image:
+      name: Send update image
+      description: When enabled, include stream artwork embeds in live update edits.
+      selector:
+        boolean:
+    send_offline_image:
+      name: Send offline image
+      description: When enabled, include stream artwork embeds in the offline/stream-ended update.
+      selector:
+        boolean:
     sync_now:
       name: Sync immediately
       description: When enabled, the integration immediately checks the current entity state and posts a live message if the streamer is already online.

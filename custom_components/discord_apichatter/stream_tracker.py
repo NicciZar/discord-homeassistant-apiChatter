@@ -28,6 +28,9 @@ from .const import (
     ATTR_LIVE_TEMPLATE,
     ATTR_MESSAGE_ID,
     ATTR_OFFLINE_TEMPLATE,
+    ATTR_SEND_LIVE_IMAGE,
+    ATTR_SEND_OFFLINE_IMAGE,
+    ATTR_SEND_UPDATE_IMAGE,
     ATTR_SYNC_NOW,
     ATTR_TRACKER_ID,
     ATTR_UPDATE_ON_GAME_CHANGE,
@@ -107,6 +110,15 @@ class StreamTrackerManager:
                     ),
                     ATTR_UPDATE_ON_GAME_CHANGE: tracker.get(
                         ATTR_UPDATE_ON_GAME_CHANGE, True
+                    ),
+                    ATTR_SEND_LIVE_IMAGE: tracker.get(
+                        ATTR_SEND_LIVE_IMAGE, True
+                    ),
+                    ATTR_SEND_UPDATE_IMAGE: tracker.get(
+                        ATTR_SEND_UPDATE_IMAGE, True
+                    ),
+                    ATTR_SEND_OFFLINE_IMAGE: tracker.get(
+                        ATTR_SEND_OFFLINE_IMAGE, True
                     ),
                 }
             )
@@ -207,6 +219,24 @@ class StreamTrackerManager:
                         tracker.get(ATTR_UPDATE_ON_GAME_CHANGE, True),
                     )
                 ),
+                ATTR_SEND_LIVE_IMAGE: bool(
+                    config.get(
+                        ATTR_SEND_LIVE_IMAGE,
+                        tracker.get(ATTR_SEND_LIVE_IMAGE, True),
+                    )
+                ),
+                ATTR_SEND_UPDATE_IMAGE: bool(
+                    config.get(
+                        ATTR_SEND_UPDATE_IMAGE,
+                        tracker.get(ATTR_SEND_UPDATE_IMAGE, True),
+                    )
+                ),
+                ATTR_SEND_OFFLINE_IMAGE: bool(
+                    config.get(
+                        ATTR_SEND_OFFLINE_IMAGE,
+                        tracker.get(ATTR_SEND_OFFLINE_IMAGE, True),
+                    )
+                ),
             }
         )
 
@@ -285,6 +315,41 @@ class StreamTrackerManager:
         return await self._async_process_state(tracker_id, state, force=True)
 
     @callback
+    def get_tracker(self, tracker_id: str) -> dict[str, Any] | None:
+        """Return raw tracker data for diagnostics and preview use."""
+        tracker = self._trackers.get(tracker_id)
+        return dict(tracker) if tracker is not None else None
+
+    @callback
+    def preview_tracker_template(
+        self,
+        tracker_id: str,
+        template_kind: str,
+    ) -> str:
+        """Render a tracker template using the entity's current state."""
+        tracker = self._trackers.get(tracker_id)
+        if tracker is None:
+            raise HomeAssistantError(f"Tracked stream '{tracker_id}' was not found.")
+
+        state = self.hass.states.get(tracker[ATTR_ENTITY_ID])
+        if state is None:
+            state = State(
+                tracker[ATTR_ENTITY_ID],
+                "unknown",
+                {
+                    "friendly_name": tracker[ATTR_ENTITY_ID],
+                    "title": tracker.get("last_title"),
+                    "game": tracker.get("last_game"),
+                    "viewers": tracker.get("last_viewers"),
+                    "started_at": tracker.get("last_started_at"),
+                    "thumbnail_url": tracker.get("last_thumbnail_url"),
+                    "channel_picture": tracker.get("last_channel_picture"),
+                },
+            )
+
+        return self._render_message(tracker, tracker_id, state, template_kind)
+
+    @callback
     def _async_subscribe_tracker(self, tracker_id: str) -> None:
         """Subscribe to state changes for a tracker."""
         tracker = self._trackers.get(tracker_id)
@@ -326,6 +391,8 @@ class StreamTrackerManager:
             if tracker is None:
                 return {"ok": False, "reason": "tracker_removed"}
 
+            tracker["last_processed_at"] = dt_util.utcnow().replace(microsecond=0).isoformat()
+
             state_value = str(new_state.state).lower()
             if state_value in IGNORED_STATES:
                 return {
@@ -348,10 +415,12 @@ class StreamTrackerManager:
             started_at = new_state.attributes.get(
                 "started_at", tracker.get("last_started_at")
             )
-            thumbnail_url = self._resolve_image_url(
+            current_thumbnail_url = self._resolve_image_url(
                 new_state.attributes.get("thumbnail_url")
                 or new_state.attributes.get("entity_picture")
-                or tracker.get("last_thumbnail_url")
+            )
+            thumbnail_url = current_thumbnail_url or self._resolve_image_url(
+                tracker.get("last_thumbnail_url")
             )
             channel_picture = self._resolve_image_url(
                 new_state.attributes.get("channel_picture")
@@ -375,15 +444,24 @@ class StreamTrackerManager:
             response: dict[str, Any] | None = None
 
             if is_live and (not was_live or not tracker.get(ATTR_MESSAGE_ID)):
+                # Prefer only current-state artwork on stream start to avoid reusing stale
+                # thumbnails from a previous stream session.
+                include_live_image = bool(tracker.get(ATTR_SEND_LIVE_IMAGE, True))
+                live_embeds = self._build_embeds(
+                    current_thumbnail_url,
+                    channel_picture,
+                ) if include_live_image else []
                 content = self._render_message(tracker, tracker_id, new_state, "live")
                 response = await client.async_send_message(
                     channel_id,
                     content,
-                    embeds=embeds,
+                    embeds=live_embeds,
                 )
                 tracker[ATTR_MESSAGE_ID] = response.get("id")
                 action = "sent"
             elif is_live and should_send_update:
+                include_update_image = bool(tracker.get(ATTR_SEND_UPDATE_IMAGE, True))
+                update_embeds = embeds if include_update_image else []
                 content = self._render_message(tracker, tracker_id, new_state, "update")
                 if tracker.get(ATTR_MESSAGE_ID):
                     try:
@@ -391,14 +469,15 @@ class StreamTrackerManager:
                             channel_id,
                             tracker[ATTR_MESSAGE_ID],
                             content=content,
-                            embeds=embeds,
+                            embeds=update_embeds,
                         )
                         action = "edited" if (title_changed or game_changed) else "synced"
-                    except DiscordApiError:
+                    except DiscordApiError as err:
+                        tracker["last_error"] = str(err)
                         response = await client.async_send_message(
                             channel_id,
                             content,
-                            embeds=embeds,
+                            embeds=update_embeds,
                         )
                         tracker[ATTR_MESSAGE_ID] = response.get("id")
                         action = "sent"
@@ -406,21 +485,27 @@ class StreamTrackerManager:
                     response = await client.async_send_message(
                         channel_id,
                         content,
-                        embeds=embeds,
+                        embeds=update_embeds,
                     )
                     tracker[ATTR_MESSAGE_ID] = response.get("id")
                     action = "sent"
             elif (not is_live) and was_live and tracker.get(ATTR_MESSAGE_ID):
+                include_offline_image = bool(tracker.get(ATTR_SEND_OFFLINE_IMAGE, True))
+                offline_embeds = self._build_embeds(
+                    thumbnail_url,
+                    channel_picture,
+                ) if include_offline_image else []
                 content = self._render_message(tracker, tracker_id, new_state, "offline")
                 try:
                     response = await client.async_edit_message(
                         channel_id,
                         tracker[ATTR_MESSAGE_ID],
                         content=content,
-                        embeds=embeds,
+                        embeds=offline_embeds,
                     )
                     action = "edited"
-                except DiscordApiError:
+                except DiscordApiError as err:
+                    tracker["last_error"] = str(err)
                     action = "ignored"
 
             tracker["last_state"] = state_value
@@ -431,6 +516,9 @@ class StreamTrackerManager:
             tracker["last_started_at"] = started_at
             tracker["last_thumbnail_url"] = thumbnail_url
             tracker["last_channel_picture"] = channel_picture
+            tracker["last_action"] = action
+            if action != "ignored":
+                tracker["last_error"] = None
 
             await self._async_save()
 
