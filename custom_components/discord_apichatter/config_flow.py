@@ -11,7 +11,6 @@ import voluptuous as vol
 from homeassistant.config_entries import (
     ConfigEntry,
     ConfigFlow,
-    ConfigFlowResult,
     OptionsFlow,
 )
 from homeassistant.const import ATTR_ENTITY_ID, CONF_API_TOKEN, CONF_NAME, CONF_URL
@@ -22,7 +21,6 @@ from homeassistant.helpers.selector import (
     BooleanSelector,
     EntitySelector,
     EntitySelectorConfig,
-    SelectOptionDict,
     SelectSelector,
     SelectSelectorConfig,
     SelectSelectorMode,
@@ -91,7 +89,7 @@ CONFIG_SCHEMA = vol.Schema(
 
 def _build_tracker_schema(
     defaults: Mapping[str, Any] | None = None,
-    channel_options: list[SelectOptionDict] | None = None,
+    channel_options: list[dict[str, str]] | None = None,
 ) -> vol.Schema:
     """Build the options-flow schema for a tracked stream."""
     defaults = defaults or {}
@@ -154,7 +152,7 @@ def _build_tracker_schema(
 
 def _build_test_message_schema(
     defaults: Mapping[str, Any] | None = None,
-    channel_options: list[SelectOptionDict] | None = None,
+    channel_options: list[dict[str, str]] | None = None,
 ) -> vol.Schema:
     """Build the options-flow schema for sending fake test messages."""
     defaults = defaults or {}
@@ -185,9 +183,9 @@ def _build_test_message_schema(
             ): SelectSelector(
                 SelectSelectorConfig(
                     options=[
-                        SelectOptionDict(value="live", label="Send live/start message"),
-                        SelectOptionDict(value="update", label="Send update message"),
-                        SelectOptionDict(value="offline", label="Send offline/stop message"),
+                        dict(value="live", label="Send live/start message"),
+                        dict(value="update", label="Send update message"),
+                        dict(value="offline", label="Send offline/stop message"),
                     ],
                     mode=SelectSelectorMode.DROPDOWN,
                 )
@@ -450,7 +448,7 @@ class DiscordApiChatterOptionsFlow(OptionsFlow):
                     vol.Required(ATTR_CHANNEL_ID): SelectSelector(
                         SelectSelectorConfig(
                             options=[
-                                SelectOptionDict(
+                                dict(
                                     value=entry[ATTR_CHANNEL_ID],
                                     label=(
                                         f"{entry[ATTR_CHANNEL_ID]} - "
@@ -540,7 +538,7 @@ class DiscordApiChatterOptionsFlow(OptionsFlow):
                     vol.Required(ATTR_CHANNEL_ID): SelectSelector(
                         SelectSelectorConfig(
                             options=[
-                                SelectOptionDict(
+                                dict(
                                     value=entry[ATTR_CHANNEL_ID],
                                     label=(
                                         f"{entry[ATTR_CHANNEL_ID]} - "
@@ -669,7 +667,7 @@ class DiscordApiChatterOptionsFlow(OptionsFlow):
                     vol.Required(ATTR_TRACKER_ID): SelectSelector(
                         SelectSelectorConfig(
                             options=[
-                                SelectOptionDict(
+                                dict(
                                     value=tracker[ATTR_TRACKER_ID],
                                     label=self._tracker_label(tracker),
                                 )
@@ -889,7 +887,7 @@ class DiscordApiChatterOptionsFlow(OptionsFlow):
                     vol.Required(ATTR_TRACKER_ID): SelectSelector(
                         SelectSelectorConfig(
                             options=[
-                                SelectOptionDict(
+                                dict(
                                     value=tracker[ATTR_TRACKER_ID],
                                     label=self._tracker_label(tracker),
                                 )
@@ -1141,16 +1139,16 @@ class DiscordApiChatterOptionsFlow(OptionsFlow):
     def _build_channel_dropdown_options(
         self,
         current_channel_id: str = "",
-    ) -> list[SelectOptionDict]:
+    ) -> list[dict[str, str]]:
         """Build channel select options with configured channel labels."""
-        options: list[SelectOptionDict] = [
-            SelectOptionDict(value="", label="Use default channel")
+        options: list[dict[str, str]] = [
+            dict(value="", label="Use default channel")
         ]
         channel_entries = self._get_channel_entries()
 
         options.extend(
             [
-                SelectOptionDict(
+                dict(
                     value=entry[ATTR_CHANNEL_ID],
                     label=f"{entry[ATTR_CHANNEL_ID]} - {entry[ATTR_CHANNEL_NAME]}",
                 )
@@ -1163,7 +1161,7 @@ class DiscordApiChatterOptionsFlow(OptionsFlow):
             entry[ATTR_CHANNEL_ID] != normalized_current for entry in channel_entries
         ):
             options.append(
-                SelectOptionDict(
+                dict(
                     value=normalized_current,
                     label=f"{normalized_current} - (unconfigured)",
                 )
