@@ -50,7 +50,8 @@
         "menu_options": {
           "add_channel": "Add channel entry",
           "edit_channel_select": "Edit channel entry",
-          "remove_channel": "Remove channel entry"
+          "remove_channel": "Remove channel entry",
+          "back_to_init": "← Back"
         }
       },
       "add_channel": {
@@ -116,7 +117,8 @@
           "tracker_health": "Tracker health",
           "copy_tracker_diagnostics": "Copy diagnostics text",
           "test_message": "Test this tracker's messages",
-          "confirm_reset_templates": "Reset templates to defaults"
+          "confirm_reset_templates": "Reset templates to defaults",
+          "back_to_init": "← Back"
         }
       },
       "preview_tracker_template": {
@@ -125,7 +127,8 @@
         "menu_options": {
           "preview_tracker_template_live": "Preview live template",
           "preview_tracker_template_update": "Preview update template",
-          "preview_tracker_template_offline": "Preview offline template"
+          "preview_tracker_template_offline": "Preview offline template",
+          "back_to_edit_tracker_actions": "← Back"
         }
       },
       "preview_tracker_template_live": {
@@ -206,8 +209,15 @@
         "description": "This will overwrite the live, update, and offline templates for `{entity_id}` with the current built-in defaults and save immediately.",
         "menu_options": {
           "confirm_reset_templates_yes": "Yes, reset and save",
-          "confirm_reset_templates_no": "No, go back"
+          "confirm_reset_templates_no": "No, go back",
+          "back_to_edit_tracker_actions": "← Back"
         }
+      },
+      "back_to_init": {
+        "title": "Back"
+      },
+      "back_to_edit_tracker_actions": {
+        "title": "Back"
       }
     }
   }

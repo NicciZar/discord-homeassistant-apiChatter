@@ -390,6 +390,7 @@ class DiscordApiChatterOptionsFlow(OptionsFlow):
         menu_options = ["add_channel"]
         if self._get_channel_entries():
             menu_options.extend(["edit_channel_select", "remove_channel"])
+        menu_options.append("back_to_init")
 
         return self.async_show_menu(step_id="manage_channels", menu_options=menu_options)
 
@@ -647,6 +648,22 @@ class DiscordApiChatterOptionsFlow(OptionsFlow):
             errors=errors,
         )
 
+    async def async_step_back_to_init(
+        self,
+        user_input: dict[str, Any] | None = None,
+    ) -> ConfigFlowResult:
+        """Return to the main menu."""
+        self._selected_tracker_id = None
+        self._selected_channel_id = None
+        return await self.async_step_init()
+
+    async def async_step_back_to_edit_tracker_actions(
+        self,
+        user_input: dict[str, Any] | None = None,
+    ) -> ConfigFlowResult:
+        """Return to the edit tracker actions menu."""
+        return await self.async_step_edit_tracker_actions()
+
     async def async_step_edit_tracker_select(
         self,
         user_input: dict[str, Any] | None = None,
@@ -698,6 +715,7 @@ class DiscordApiChatterOptionsFlow(OptionsFlow):
                 "copy_tracker_diagnostics",
                 "test_message",
                 "confirm_reset_templates",
+                "back_to_init",
             ],
             description_placeholders={"entity_id": str(tracker[ATTR_ENTITY_ID])},
         )
@@ -717,6 +735,7 @@ class DiscordApiChatterOptionsFlow(OptionsFlow):
                 "preview_tracker_template_live",
                 "preview_tracker_template_update",
                 "preview_tracker_template_offline",
+                "back_to_edit_tracker_actions",
             ],
             description_placeholders={"entity_id": str(tracker[ATTR_ENTITY_ID])},
         )
@@ -833,6 +852,7 @@ class DiscordApiChatterOptionsFlow(OptionsFlow):
             menu_options=[
                 "confirm_reset_templates_yes",
                 "confirm_reset_templates_no",
+                "back_to_edit_tracker_actions",
             ],
             description_placeholders={"entity_id": str(tracker[ATTR_ENTITY_ID])},
         )
