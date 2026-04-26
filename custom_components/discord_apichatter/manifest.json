@@ -8,5 +8,5 @@
     "documentation":  "https://github.com/NicciZar/discord-homeassistant-apiChatter",
     "integration_type":  "service",
     "iot_class":  "cloud_push",
-    "version":  "0.9.5"
+    "version":  "0.9.6"
 }
