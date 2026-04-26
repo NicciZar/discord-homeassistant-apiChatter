@@ -347,7 +347,7 @@ class DiscordApiChatterOptionsFlow(OptionsFlow):
 
     def __init__(self, config_entry: ConfigEntry) -> None:
         """Initialize the options flow."""
-        self.config_entry = config_entry
+        super().__init__(config_entry)
         self._selected_tracker_id: str | None = None
         self._selected_channel_id: str | None = None
         self._pending_test_message_data: dict[str, Any] | None = None
