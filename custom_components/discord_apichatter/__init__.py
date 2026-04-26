@@ -56,10 +56,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
 
-    if CONF_TRACKERS in entry.options:
+    options = entry.options or {}
+    if CONF_TRACKERS in options:
         await tracker_manager.async_apply_entry_trackers(
             entry.entry_id,
-            entry.options[CONF_TRACKERS],
+            options[CONF_TRACKERS],
         )
 
     await async_register_services(hass)

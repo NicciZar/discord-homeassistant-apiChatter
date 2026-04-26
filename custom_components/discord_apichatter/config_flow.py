@@ -296,6 +296,7 @@ class DiscordApiChatterConfigFlow(ConfigFlow, domain=DOMAIN):
                 return self.async_create_entry(
                     title=title,
                     data=user_input | {CONF_NAME: title},
+                    options={},
                 )
 
         return self.async_show_form(
@@ -358,11 +359,15 @@ class DiscordApiChatterOptionsFlow(OptionsFlow):
         user_input: dict[str, Any] | None = None,
     ) -> ConfigFlowResult:
         """Show the tracker management menu."""
-        menu_options = ["add_tracker", "test_message", "manage_channels"]
-        if self._get_trackers():
-            menu_options.extend(["edit_tracker_select", "remove_tracker"])
+        try:
+            menu_options = ["add_tracker", "test_message", "manage_channels"]
+            if self._get_trackers():
+                menu_options.extend(["edit_tracker_select", "remove_tracker"])
 
-        return self.async_show_menu(step_id="init", menu_options=menu_options)
+            return self.async_show_menu(step_id="init", menu_options=menu_options)
+        except Exception as err:
+            _LOGGER.exception("Error in async_step_init: %s", err)
+            raise
 
     async def async_step_add_tracker(
         self,
