@@ -134,6 +134,8 @@ You can configure tracked stream messages directly from the Home Assistant UI:
 4. Choose **Add stream tracker**.
 5. Pick your Twitch-style stream sensor and target Discord channel.
 
+You can also manage reusable channel entries from the same Configure menu, then select those entries from tracker/test message dropdowns.
+
 ### Tracker behavior
 
 For each tracked entity/channel pair:
@@ -143,6 +145,8 @@ For each tracked entity/channel pair:
 - when the stream goes **offline**, the same message is edited to its offline state
 - the tracker includes independent switches to control image embeds for live, update, and offline events
 - the integration remembers the `message_id` so updates continue across restarts
+- template preview is available for live/update/offline messages before saving
+- tracker health and copy-ready diagnostics are available from tracker actions
 
 Multiple streamers and multiple channels are supported.
 
@@ -208,6 +212,14 @@ This makes it easy to preview formatting before using a real tracker.
 
 ---
 
+## Configuration UI notes
+
+- Home Assistant controls the config dialog header UI.
+- Custom integrations cannot add or customize a header back arrow next to the close button.
+- This integration uses in-flow menu steps/actions to navigate between tracker/channel pages.
+
+---
+
 ## Advanced services
 
 The UI covers normal setup, but the following services are also available for advanced use:
@@ -257,6 +269,17 @@ Check that your stream entity:
 
 The repository includes `scripts/release.ps1` to update `manifest.json`, create a git tag, and optionally publish a GitHub release.
 
+Release flow summary:
+
+- validates branch and local working tree
+- fetches remote tags from `origin` and checks for tag conflicts
+- updates `manifest.json` version and creates a release commit
+- pushes `main` to `origin`
+- creates/pushes release tag
+- creates GitHub release with `gh` (unless skipped)
+
+You do not need to manually push first; the script performs push steps itself.
+
 Examples:
 
 ```powershell
@@ -271,4 +294,5 @@ Examples:
 
 - Versioning is intended to be handled through `scripts/release.ps1`.
 - The integration is currently focused on Discord bot messaging and Twitch-style stream update workflows.
+- Integration icon/logo files can be included under `custom_components/discord_apichatter/brand`, but older Home Assistant versions may not display local custom-integration branding.
 
