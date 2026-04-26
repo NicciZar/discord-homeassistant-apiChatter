@@ -347,7 +347,7 @@ class DiscordApiChatterOptionsFlow(OptionsFlow):
 
     def __init__(self, config_entry: ConfigEntry) -> None:
         """Initialize the options flow."""
-        super().__init__(config_entry)
+        self._config_entry = config_entry
         self._selected_tracker_id: str | None = None
         self._selected_channel_id: str | None = None
         self._pending_test_message_data: dict[str, Any] | None = None
@@ -587,7 +587,7 @@ class DiscordApiChatterOptionsFlow(OptionsFlow):
             else:
                 return self.async_create_entry(
                     title="",
-                    data=(self.config_entry.options or {}) | {CONF_TEST_MESSAGE: saved_test_data},
+                    data=(self._config_entry.options or {}) | {CONF_TEST_MESSAGE: saved_test_data},
                 )
 
         return self.async_show_form(
@@ -601,7 +601,7 @@ class DiscordApiChatterOptionsFlow(OptionsFlow):
             errors=errors,
             description_placeholders={
                 "default_channel": str(
-                    self.config_entry.data.get(CONF_DEFAULT_CHANNEL) or "not set"
+                    self._config_entry.data.get(CONF_DEFAULT_CHANNEL) or "not set"
                 )
             },
         )
@@ -638,7 +638,7 @@ class DiscordApiChatterOptionsFlow(OptionsFlow):
                 self._pending_test_message_data = None
                 return self.async_create_entry(
                     title="",
-                    data=(self.config_entry.options or {}) | {CONF_TEST_MESSAGE: saved_test_data},
+                    data=(self._config_entry.options or {}) | {CONF_TEST_MESSAGE: saved_test_data},
                 )
 
         return self.async_show_form(
@@ -877,7 +877,7 @@ class DiscordApiChatterOptionsFlow(OptionsFlow):
             ]
             return self.async_create_entry(
                 title="",
-                data=(self.config_entry.options or {}) | {CONF_TRACKERS: trackers},
+                data=(self._config_entry.options or {}) | {CONF_TRACKERS: trackers},
             )
 
         return self.async_show_form(
@@ -905,12 +905,12 @@ class DiscordApiChatterOptionsFlow(OptionsFlow):
         overrides: Mapping[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Return remembered defaults for the test-message UI."""
-        options = self.config_entry.options or {}
+        options = self._config_entry.options or {}
         saved = dict(options.get(CONF_TEST_MESSAGE, {}))
         defaults: dict[str, Any] = {
             ATTR_CHANNEL_ID: (
                 saved.get(ATTR_CHANNEL_ID)
-                or self.config_entry.data.get(CONF_DEFAULT_CHANNEL)
+                or self._config_entry.data.get(CONF_DEFAULT_CHANNEL)
                 or ""
             ),
             ATTR_ENTITY_ID: saved.get(ATTR_ENTITY_ID, "sensor.test_streamer"),
@@ -989,7 +989,7 @@ class DiscordApiChatterOptionsFlow(OptionsFlow):
     ) -> dict[str, Any]:
         """Send or edit a remembered fake Discord test message."""
         entry_data = self.hass.data.get(DOMAIN, {}).get(DATA_ENTRIES, {}).get(
-            self.config_entry.entry_id
+            self._config_entry.entry_id
         )
         if entry_data is None:
             raise HomeAssistantError("The Discord config entry is not loaded.")
@@ -999,8 +999,8 @@ class DiscordApiChatterOptionsFlow(OptionsFlow):
             raise HomeAssistantError("The stream tracker manager is not available.")
 
         client = entry_data["client"]
-        saved = dict(self.config_entry.options.get(CONF_TEST_MESSAGE, {}))
-        channel_id = test_data.get(ATTR_CHANNEL_ID) or self.config_entry.data.get(
+        saved = dict((self._config_entry.options or {}).get(CONF_TEST_MESSAGE, {}))
+        channel_id = test_data.get(ATTR_CHANNEL_ID) or self._config_entry.data.get(
             CONF_DEFAULT_CHANNEL
         )
         if not channel_id:
@@ -1102,9 +1102,9 @@ class DiscordApiChatterOptionsFlow(OptionsFlow):
         """Return the currently known trackers for this config entry."""
         manager = self.hass.data.get(DOMAIN, {}).get(DATA_STREAM_TRACKER)
         if manager is not None:
-            return manager.get_trackers_for_entry(self.config_entry.entry_id)
+            return manager.get_trackers_for_entry(self._config_entry.entry_id)
 
-        options = self.config_entry.options or {}
+        options = self._config_entry.options or {}
         return [
             dict(tracker)
             for tracker in options.get(CONF_TRACKERS, [])
@@ -1112,7 +1112,7 @@ class DiscordApiChatterOptionsFlow(OptionsFlow):
 
     def _get_channel_entries(self) -> list[dict[str, str]]:
         """Return configured Discord channel entries."""
-        options = self.config_entry.options or {}
+        options = self._config_entry.options or {}
         entries = [
             {
                 ATTR_CHANNEL_ID: str(entry.get(ATTR_CHANNEL_ID, "")).strip(),
@@ -1176,7 +1176,7 @@ class DiscordApiChatterOptionsFlow(OptionsFlow):
         """Save channel entries while preserving other options."""
         return self.async_create_entry(
             title="",
-            data=(self.config_entry.options or {}) | {CONF_CHANNELS: channel_entries},
+            data=(self._config_entry.options or {}) | {CONF_CHANNELS: channel_entries},
         )
 
     def _get_selected_tracker(self) -> dict[str, Any] | None:
@@ -1201,7 +1201,7 @@ class DiscordApiChatterOptionsFlow(OptionsFlow):
         runtime = manager.get_tracker(self._selected_tracker_id)
         if runtime is None:
             return None
-        if runtime.get(ATTR_ENTRY_ID) != self.config_entry.entry_id:
+        if runtime.get(ATTR_ENTRY_ID) != self._config_entry.entry_id:
             return None
         return runtime
 
@@ -1273,7 +1273,7 @@ class DiscordApiChatterOptionsFlow(OptionsFlow):
         trackers.append(tracker)
         return self.async_create_entry(
             title="",
-            data=(self.config_entry.options or {}) | {CONF_TRACKERS: trackers},
+            data=(self._config_entry.options or {}) | {CONF_TRACKERS: trackers},
         )
 
     def _normalize_tracker(
@@ -1286,13 +1286,13 @@ class DiscordApiChatterOptionsFlow(OptionsFlow):
         """Normalize tracker form input for storage."""
         channel_id = str(user_input.get(ATTR_CHANNEL_ID, "")).strip() or None
         normalized_tracker_id = tracker_id or slugify(
-            f"{user_input[ATTR_ENTITY_ID]}_{channel_id or 'default'}_{self.config_entry.entry_id}"
+            f"{user_input[ATTR_ENTITY_ID]}_{channel_id or 'default'}_{self._config_entry.entry_id}"
         )
         reset_templates = force_defaults
 
         return {
             ATTR_TRACKER_ID: normalized_tracker_id,
-            ATTR_ENTRY_ID: self.config_entry.entry_id,
+            ATTR_ENTRY_ID: self._config_entry.entry_id,
             ATTR_ENTITY_ID: str(user_input[ATTR_ENTITY_ID]),
             ATTR_CHANNEL_ID: channel_id,
             ATTR_LIVE_TEMPLATE: (
