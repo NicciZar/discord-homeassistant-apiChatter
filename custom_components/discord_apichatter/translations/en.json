@@ -48,10 +48,10 @@
         "title": "Manage channel entries",
         "description": "Add, edit, or remove reusable Discord channel entries for tracker dropdowns.",
         "menu_options": {
+          "back_to_init": "Back",
           "add_channel": "Add channel entry",
           "edit_channel_select": "Edit channel entry",
-          "remove_channel": "Remove channel entry",
-          "back_to_init": "← Back"
+          "remove_channel": "Remove channel entry"
         }
       },
       "add_channel": {
@@ -112,23 +112,23 @@
         "title": "Edit stream tracker",
         "description": "Choose what you want to do for `{entity_id}`.",
         "menu_options": {
+          "back_to_init": "Back",
           "edit_tracker": "Edit tracker settings",
           "preview_tracker_template": "Preview templates",
           "tracker_health": "Tracker health",
           "copy_tracker_diagnostics": "Copy diagnostics text",
           "test_message": "Test this tracker's messages",
-          "confirm_reset_templates": "Reset templates to defaults",
-          "back_to_init": "← Back"
+          "confirm_reset_templates": "Reset templates to defaults"
         }
       },
       "preview_tracker_template": {
         "title": "Preview tracker templates",
         "description": "Select which template to preview for `{entity_id}`.",
         "menu_options": {
+          "back_to_edit_tracker_actions": "Back",
           "preview_tracker_template_live": "Preview live template",
           "preview_tracker_template_update": "Preview update template",
-          "preview_tracker_template_offline": "Preview offline template",
-          "back_to_edit_tracker_actions": "← Back"
+          "preview_tracker_template_offline": "Preview offline template"
         }
       },
       "preview_tracker_template_live": {
@@ -208,9 +208,9 @@
         "title": "Reset templates to defaults?",
         "description": "This will overwrite the live, update, and offline templates for `{entity_id}` with the current built-in defaults and save immediately.",
         "menu_options": {
+          "back_to_edit_tracker_actions": "Back",
           "confirm_reset_templates_yes": "Yes, reset and save",
-          "confirm_reset_templates_no": "No, go back",
-          "back_to_edit_tracker_actions": "← Back"
+          "confirm_reset_templates_no": "No, return to edit tracker"
         }
       },
       "back_to_init": {
