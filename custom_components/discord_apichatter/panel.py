@@ -797,15 +797,29 @@ async def async_setup_panel(hass: HomeAssistant) -> None:
     hass.http.register_view(DiscordApiChatterPanelConfigView())
     hass.http.register_view(DiscordApiChatterPanelSaveView())
 
-    frontend = hass.components.frontend
-    frontend.async_register_built_in_panel(
-        component_name="iframe",
-        sidebar_title="Discord API Chatter",
-        sidebar_icon="mdi:discord",
-        frontend_url_path=PANEL_URL_PATH,
-        config={"url": PANEL_WEB_URL},
-        require_admin=True,
-    )
+    frontend_component = getattr(getattr(hass, "components", None), "frontend", None)
+    if frontend_component is not None:
+        frontend_component.async_register_built_in_panel(
+            component_name="iframe",
+            sidebar_title="Discord API Chatter",
+            sidebar_icon="mdi:discord",
+            frontend_url_path=PANEL_URL_PATH,
+            config={"url": PANEL_WEB_URL},
+            require_admin=True,
+        )
+    else:
+        # Newer runtimes may not expose hass.components; use module helper APIs.
+        from homeassistant.components import frontend as frontend_module
+
+        frontend_module.async_register_built_in_panel(
+            hass,
+            component_name="iframe",
+            sidebar_title="Discord API Chatter",
+            sidebar_icon="mdi:discord",
+            frontend_url_path=PANEL_URL_PATH,
+            config={"url": PANEL_WEB_URL},
+            require_admin=True,
+        )
 
     domain_data["panel_registered"] = True
 
@@ -817,7 +831,13 @@ async def async_unload_panel(hass: HomeAssistant) -> None:
         return
 
     try:
-        hass.components.frontend.async_remove_panel(PANEL_URL_PATH)
+        frontend_component = getattr(getattr(hass, "components", None), "frontend", None)
+        if frontend_component is not None:
+            frontend_component.async_remove_panel(PANEL_URL_PATH)
+        else:
+            from homeassistant.components import frontend as frontend_module
+
+            frontend_module.async_remove_panel(hass, PANEL_URL_PATH)
     except Exception:  # pragma: no cover - defensive
         _LOGGER.debug("Panel '%s' was not registered; skipping removal.", PANEL_URL_PATH)
 
