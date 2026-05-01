@@ -1,10 +1,11 @@
-"""Embedded configuration panel for Discord API Chatter."""
+"""Panel configuration views for Discord API Chatter."""
 
 from __future__ import annotations
 
-import json
 import inspect
+import json
 import logging
+from pathlib import Path
 import re
 from typing import Any
 
@@ -37,6 +38,11 @@ from .const import (
     DATA_STREAM_TRACKER,
     DOMAIN,
 )
+from .stream_tracker import (
+    DEFAULT_LIVE_TEMPLATE,
+    DEFAULT_OFFLINE_TEMPLATE,
+    DEFAULT_UPDATE_TEMPLATE,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -45,7 +51,7 @@ PANEL_WEB_URL = "/api/discord_apichatter/panel"
 PANEL_CONFIG_URL = "/api/discord_apichatter/panel/config"
 PANEL_SAVE_URL = "/api/discord_apichatter/panel/save"
 
-# Discord snowflake IDs are numeric strings of 17–20 digits.
+# Discord snowflake IDs are numeric strings of 17�20 digits.
 _SNOWFLAKE_RE = re.compile(r"^\d{17,20}$")
 
 # Maximum accepted request-body size for the save endpoint.
@@ -95,6 +101,8 @@ _TEST_MESSAGE_ALLOWED_KEYS: frozenset[str] = frozenset(
     }
 )
 
+_PANEL_TEMPLATE_PATH = Path(__file__).with_name("panel.html")
+
 
 def _get_domain_entries(hass: HomeAssistant) -> list[ConfigEntry]:
     """Return all config entries for this integration domain."""
@@ -111,7 +119,7 @@ def _serialize_entry(hass: HomeAssistant, entry: ConfigEntry) -> dict[str, Any]:
     options = entry.options or {}
 
     # default_channel lives in entry.data (current schema).
-    # Older installs may have placed it in entry.options — accept both.
+    # Older installs may have placed it in entry.options � accept both.
     default_channel = (
         data.get(CONF_DEFAULT_CHANNEL)
         or options.get(CONF_DEFAULT_CHANNEL)
@@ -119,7 +127,7 @@ def _serialize_entry(hass: HomeAssistant, entry: ConfigEntry) -> dict[str, Any]:
     )
 
     # channels / trackers / test_message live in entry.options (current schema).
-    # Older installs may have stored them in entry.data — fall back gracefully.
+    # Older installs may have stored them in entry.data � fall back gracefully.
     channels = options.get(CONF_CHANNELS) or data.get(CONF_CHANNELS) or []
     trackers = options.get(CONF_TRACKERS) or data.get(CONF_TRACKERS) or []
     if not trackers:
@@ -133,12 +141,12 @@ def _serialize_entry(hass: HomeAssistant, entry: ConfigEntry) -> dict[str, Any]:
     test_message = options.get(CONF_TEST_MESSAGE) or data.get(CONF_TEST_MESSAGE) or {}
 
     return {
-        "entry_id":       entry.entry_id,
-        "title":          entry.title,
+        "entry_id": entry.entry_id,
+        "title": entry.title,
         "default_channel": default_channel,
-        "channels":       channels,
-        "trackers":       trackers,
-        "test_message":   test_message,
+        "channels": channels,
+        "trackers": trackers,
+        "test_message": test_message,
     }
 
 
@@ -162,490 +170,23 @@ def _panel_icon_kwargs(register_panel: Any) -> dict[str, str]:
     if "sidebar_icon" in params:
         return {"sidebar_icon": "mdi:discord"}
 
-    # Most runtimes use sidebar_icon; use it as safe fallback.
     return {"sidebar_icon": "mdi:discord"}
 
 
-# ---------------------------------------------------------------------------
-# Panel HTML (module-level constant; placeholder URLs substituted at serve time)
-# ---------------------------------------------------------------------------
-
-_PANEL_HTML = """<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <meta http-equiv="Content-Security-Policy"
-        content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'self';" />
-  <title>Discord API Chatter Config</title>
-  <style>
-    :root {
-      --bg: #f6f7fb; --card: #fff; --text: #1f2937; --muted: #6b7280;
-      --line: #e5e7eb; --accent: #5865f2; --accent-hover: #4c59da;
-      --danger: #dc2626; --warn: #d97706; --ok-color: #166534; --radius: 14px;
-    }
-    *, *::before, *::after { box-sizing: border-box; }
-    body {
-      margin: 0;
-      background: radial-gradient(circle at 10% 0%, #eef2ff 0%, var(--bg) 60%);
-      color: var(--text);
-      font-family: Segoe UI, system-ui, -apple-system, sans-serif;
-      font-size: 14px;
-    }
-    .wrap { max-width: 1080px; margin: 28px auto; padding: 0 16px 48px; }
-    .card {
-      background: var(--card); border: 1px solid var(--line);
-      border-radius: var(--radius); padding: 18px 20px;
-      box-shadow: 0 4px 14px rgba(17,24,39,.06); margin-bottom: 14px;
-    }
-    details.card > summary {
-      display: flex; align-items: center; justify-content: space-between;
-      cursor: pointer; list-style: none; user-select: none;
-    }
-    details.card > summary::-webkit-details-marker { display: none; }
-    details.card[open] > summary { margin-bottom: 14px; }
-    details.card > summary > .sum-title { font-weight: 600; font-size: .95rem; }
-    h1 { margin: 0 0 6px; font-size: 1.4rem; }
-    h2 { margin: 0 0 10px; font-size: 1rem; font-weight: 700; }
-    p.muted { color: var(--muted); font-size: .88rem; margin: 0; }
-    label { display: block; margin: 12px 0 5px; font-weight: 600; font-size: .88rem; }
-    input, select, textarea, button { font: inherit; }
-    input[type="text"], select {
-      width: 100%; border: 1px solid #d1d5db; border-radius: 9px;
-      padding: 8px 11px; background: #fff; transition: border-color .15s;
-    }
-    input[type="text"]:focus, select:focus {
-      outline: none; border-color: var(--accent);
-      box-shadow: 0 0 0 3px rgba(88,101,242,.15);
-    }
-    input.field-invalid { border-color: var(--danger) !important; }
-    textarea {
-      width: 100%; min-height: 160px; resize: vertical;
-      border: 1px solid #d1d5db; border-radius: 9px; padding: 9px 11px;
-      background: #fff; font-family: Consolas, ui-monospace, monospace;
-      font-size: .82rem; line-height: 1.5; transition: border-color .15s;
-    }
-    textarea:focus {
-      outline: none; border-color: var(--accent);
-      box-shadow: 0 0 0 3px rgba(88,101,242,.15);
-    }
-    textarea.field-invalid { border-color: var(--danger) !important; }
-    button {
-      border: 0; border-radius: 9px; padding: 8px 14px; cursor: pointer;
-      font-weight: 500; transition: background .15s, opacity .15s;
-    }
-    button:disabled { opacity: .45; cursor: default; }
-    .btn-primary { background: var(--accent); color: #fff; }
-    .btn-primary:hover:not(:disabled) { background: var(--accent-hover); }
-    .btn-ghost { background: #f3f4f6; color: #111; }
-    .btn-ghost:hover:not(:disabled) { background: #e5e7eb; }
-    .btn-danger { background: #fee2e2; color: var(--danger); }
-    .btn-danger:hover:not(:disabled) { background: #fecaca; }
-    .btn-sm { padding: 4px 10px; font-size: .81rem; border-radius: 7px; }
-    .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-top: 10px; }
-    .sec-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
-    .sec-header h2 { margin: 0; }
-    .sec-actions { display: flex; gap: 6px; align-items: center; }
-    .badge { display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: .78rem; font-weight: 600; }
-    .badge-warn { background: #fef3c7; color: var(--warn); }
-    .field-err { display: block; color: var(--danger); font-size: .82rem; margin-top: 4px; min-height: 1rem; }
-    .status { margin-top: 10px; min-height: 1.1rem; font-size: .88rem; }
-    .s-ok   { color: var(--ok-color); }
-    .s-err  { color: var(--danger); }
-    .s-warn { color: var(--warn); }
-    /* Channel table */
-    .ch-table { width: 100%; border-collapse: collapse; margin-bottom: 12px; }
-    .ch-table th {
-      text-align: left; padding: 7px 10px; font-size: .8rem; font-weight: 600;
-      background: #f9fafb; border-bottom: 1px solid var(--line);
-      color: var(--muted); text-transform: uppercase; letter-spacing: .04em;
-    }
-    .ch-table td { padding: 7px 10px; border-bottom: 1px solid var(--line); vertical-align: middle; }
-    .ch-table tr:last-child td { border-bottom: none; }
-    .ch-table .empty { text-align: center; color: var(--muted); font-style: italic; padding: 20px; }
-    .ch-table .mono { font-family: Consolas, monospace; font-size: .83rem; }
-    .ch-table .tbl-actions { display: flex; gap: 6px; justify-content: flex-end; }
-    .add-ch-form { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; align-items: flex-start; }
-    .add-ch-form input { flex: 1 1 180px; }
-    .add-ch-form button { flex-shrink: 0; align-self: center; }
-    .schema-hint {
-      background: #f8fafc; border: 1px solid var(--line); border-radius: 9px;
-      padding: 10px 14px; font-family: Consolas, monospace; font-size: .78rem;
-      line-height: 1.5; color: #374151; white-space: pre-wrap; margin-bottom: 10px; overflow-x: auto;
-    }
-    .hdr-row { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; }
-  </style>
-</head>
-<body>
-  <div class="wrap">
-    <div class="card hdr-row">
-      <div>
-        <h1>Discord API Chatter</h1>
-        <p class="muted">Embedded configuration editor &mdash; channels, trackers, and test defaults.</p>
-      </div>
-      <span id="dirtyBadge" class="badge badge-warn" hidden>Unsaved changes</span>
-    </div>
-
-    <div class="card">
-      <label for="entrySelect">Integration Entry</label>
-      <select id="entrySelect"></select>
-      <label for="defaultChannel">Default Channel ID</label>
-      <input id="defaultChannel" type="text" placeholder="e.g. 123456789012345678"
-             autocomplete="off" spellcheck="false" />
-      <p class="muted" style="font-size:.83rem;margin-top:5px;">
-        17&ndash;20 digit Discord snowflake. Leave blank to require an explicit channel per request.
-      </p>
-      <span id="defChErr" class="field-err"></span>
-    </div>
-
-    <div class="card">
-      <h2>Channel Entries</h2>
-      <p class="muted" style="font-size:.83rem;margin-bottom:12px;">
-        Named shortcuts for channels used by services and stream trackers.
-        Channel IDs must be Discord snowflakes (17&ndash;20 digits, numbers only).
-      </p>
-      <table class="ch-table">
-        <thead><tr><th>Channel ID</th><th>Friendly Name</th><th></th></tr></thead>
-        <tbody id="chTbody"></tbody>
-      </table>
-      <div class="add-ch-form">
-        <input id="newChId"   type="text" placeholder="Channel ID (e.g. 123456789012345678)"
-               autocomplete="off" spellcheck="false" />
-        <input id="newChName" type="text" placeholder="Friendly name (e.g. stream-updates)"
-               autocomplete="off" />
-        <button class="btn-primary btn-sm" id="addChBtn" type="button">+ Add Channel</button>
-      </div>
-      <span id="chErr" class="field-err"></span>
-    </div>
-
-    <div class="card">
-      <div class="sec-header">
-        <h2>Trackers (JSON array)</h2>
-        <div class="sec-actions">
-          <button class="btn-ghost btn-sm" id="fmtTrackersBtn" type="button">Format</button>
-          <button class="btn-ghost btn-sm" id="valTrackersBtn" type="button">Validate</button>
-          <button class="btn-ghost btn-sm" id="schemaTrackersBtn" type="button">Schema &#9658;</button>
-        </div>
-      </div>
-      <pre class="schema-hint" id="trackerSchemaHint" hidden>[
-  {
-    "tracker_id": "my_tracker",           // unique identifier (required)
-    "entity_id":  "sensor.channel123",    // Home Assistant sensor entity (required)
-    "channel_id": "",                     // overrides default channel (optional)
-    "live_template":    "...",            // Jinja2 template (optional)
-    "update_template":  "...",            // Jinja2 template (optional)
-    "offline_template": "...",            // Jinja2 template (optional)
-    "send_live_image":    true,
-    "send_update_image":  true,
-    "send_offline_image": true,
-    "update_on_title_change": true,
-    "update_on_game_change":  true
-  }
-]</pre>
-      <textarea id="trackersJson" spellcheck="false" placeholder="[]"></textarea>
-      <span id="trackersErr" class="field-err"></span>
-    </div>
-
-    <details class="card">
-      <summary>
-        <span class="sum-title">Test Message Defaults (JSON object)</span>
-        <div class="sec-actions">
-          <button class="btn-ghost btn-sm" id="fmtTestBtn" type="button"
-                  onclick="event.stopPropagation()">Format</button>
-          <button class="btn-ghost btn-sm" id="valTestBtn" type="button"
-                  onclick="event.stopPropagation()">Validate</button>
-        </div>
-      </summary>
-      <p class="muted" style="font-size:.83rem;margin-bottom:10px;">
-        Optional remembered defaults for the built-in test message flow in the HA options dialog.
-      </p>
-      <textarea id="testMessageJson" spellcheck="false" placeholder="{}"></textarea>
-      <span id="testErr" class="field-err"></span>
-    </details>
-
-    <div class="card">
-      <div class="row">
-        <button class="btn-ghost" id="reloadBtn" type="button">&#8635; Reload</button>
-        <button class="btn-primary" id="saveBtn" type="button">Save All</button>
-      </div>
-      <div id="statusEl" class="status"></div>
-    </div>
-  </div>
-
-  <script>
-    'use strict';
-
-    const CONFIG_URL   = '__PANEL_CONFIG_URL__';
-    const SAVE_URL     = '__PANEL_SAVE_URL__';
-    const SNOWFLAKE_RE = /^\\d{17,20}$/;
-
-    function getAccessToken() {
-      // Home Assistant stores auth tokens in browser storage; use the access token
-      // for iframe API calls that otherwise appear unauthenticated.
-      const storageCandidates = [window.localStorage, window.sessionStorage];
-      for (const store of storageCandidates) {
-        try {
-          const raw = store.getItem('hassTokens');
-          if (!raw) continue;
-          const parsed = JSON.parse(raw);
-          if (parsed && typeof parsed.access_token === 'string' && parsed.access_token) {
-            return parsed.access_token;
-          }
-        } catch (_err) {
-          // Ignore malformed storage and try next source.
-        }
-      }
-      return null;
-    }
-
-    async function apiFetch(url, options = {}) {
-      const token = getAccessToken();
-      const headers = Object.assign({}, options.headers || {});
-      if (token) {
-        headers.Authorization = 'Bearer ' + token;
-      }
-
-      const res = await fetch(url, {
-        credentials: 'same-origin',
-        ...options,
-        headers,
-      });
-
-      if (res.status === 401) {
-        throw new Error('Load failed (401). Please refresh Home Assistant and try again.');
-      }
-      return res;
-    }
-
-    const state = { entries: [], selectedEntryId: null, channels: [], dirty: false };
-
-    const $ = (id) => document.getElementById(id);
-    const entrySelEl = $('entrySelect'), defChIn = $('defaultChannel'),
-          defChErr = $('defChErr'), chTbody = $('chTbody'),
-          newChIdEl = $('newChId'), newChNameEl = $('newChName'),
-          chErrEl = $('chErr'), trackersEl = $('trackersJson'),
-          trackersErrEl = $('trackersErr'), testMsgEl = $('testMessageJson'),
-          testErrEl = $('testErr'), statusEl = $('statusEl'),
-          dirtyBadge = $('dirtyBadge'), saveBtnEl = $('saveBtn');
-
-    function esc(s) {
-      return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;')
-        .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-    }
-    function isSnowflake(id) { return SNOWFLAKE_RE.test(id); }
-    function setStatus(msg, cls) { statusEl.textContent = msg; statusEl.className = 'status ' + (cls || 's-ok'); }
-    function clearStatus() { statusEl.textContent = ''; statusEl.className = 'status'; }
-    function setFieldErr(el, msg) { el.textContent = msg || ''; }
-    function clearFieldErr(el)    { el.textContent = ''; }
-    function markDirty()  { state.dirty = true;  dirtyBadge.hidden = false; }
-    function clearDirty() { state.dirty = false; dirtyBadge.hidden = true;  }
-
-    function tryFormatJson(str, defaultVal) {
-      try   { return JSON.stringify(JSON.parse(str), null, 2); }
-      catch { return defaultVal !== undefined ? defaultVal : str; }
-    }
-    function validateJsonTextarea(textarea, errEl, kind) {
-      const fallback = kind === 'array' ? '[]' : '{}';
-      try {
-        JSON.parse(textarea.value.trim() || fallback);
-        textarea.classList.remove('field-invalid'); clearFieldErr(errEl); return true;
-      } catch (e) {
-        textarea.classList.add('field-invalid'); setFieldErr(errEl, 'JSON error: ' + e.message); return false;
-      }
-    }
-
-    // Channel table
-    function renderChannels() {
-      chTbody.innerHTML = '';
-      if (!state.channels.length) {
-        chTbody.innerHTML = '<tr><td colspan="3" class="empty">No channels configured &mdash; use the form below to add one.</td></tr>';
-        return;
-      }
-      state.channels.forEach((ch, idx) => {
-        const tr = document.createElement('tr');
-        tr.innerHTML =
-          '<td class="mono">' + esc(ch.channel_id) + '</td>' +
-          '<td>' + esc(ch.channel_name) + '</td>' +
-          '<td class="tbl-actions">' +
-            '<button class="btn-ghost btn-sm" onclick="startEditChannel(' + idx + ')">Edit</button>' +
-            '<button class="btn-danger btn-sm" onclick="removeChannel(' + idx + ')">Remove</button>' +
-          '</td>';
-        chTbody.appendChild(tr);
-      });
-    }
-    function addChannel() {
-      clearFieldErr(chErrEl);
-      newChIdEl.classList.remove('field-invalid');
-      newChNameEl.classList.remove('field-invalid');
-      const id = newChIdEl.value.trim(), name = newChNameEl.value.trim();
-      if (!id || !name) {
-        setFieldErr(chErrEl, 'Both Channel ID and a friendly name are required.');
-        if (!id)   newChIdEl.classList.add('field-invalid');
-        if (!name) newChNameEl.classList.add('field-invalid');
-        return;
-      }
-      if (!isSnowflake(id)) {
-        setFieldErr(chErrEl, 'Channel ID must be a 17\u201320 digit Discord snowflake (numbers only).');
-        newChIdEl.classList.add('field-invalid'); return;
-      }
-      if (state.channels.some((c) => c.channel_id === id)) {
-        setFieldErr(chErrEl, 'A channel with ID "' + esc(id) + '" already exists.');
-        newChIdEl.classList.add('field-invalid'); return;
-      }
-      state.channels.push({ channel_id: id, channel_name: name });
-      newChIdEl.value = ''; newChNameEl.value = '';
-      renderChannels(); markDirty();
-    }
-    function removeChannel(idx) { state.channels.splice(idx, 1); renderChannels(); markDirty(); }
-    function startEditChannel(idx) {
-      const ch = state.channels[idx];
-      newChIdEl.value = ch.channel_id; newChNameEl.value = ch.channel_name;
-      state.channels.splice(idx, 1); renderChannels();
-      clearFieldErr(chErrEl); newChIdEl.focus(); markDirty();
-    }
-
-    // JSON editor helpers
-    $('fmtTrackersBtn').addEventListener('click', () => {
-      const fmt = tryFormatJson(trackersEl.value, null);
-      if (fmt !== null) { trackersEl.value = fmt; trackersEl.classList.remove('field-invalid'); clearFieldErr(trackersErrEl); markDirty(); }
-    });
-    $('valTrackersBtn').addEventListener('click', () => {
-      if (validateJsonTextarea(trackersEl, trackersErrEl, 'array')) setStatus('Trackers JSON is valid.', 's-ok');
-    });
-    $('schemaTrackersBtn').addEventListener('click', () => {
-      const hint = $('trackerSchemaHint'); hint.hidden = !hint.hidden;
-      $('schemaTrackersBtn').textContent = hint.hidden ? 'Schema \u25B8' : 'Schema \u25BE';
-    });
-    $('fmtTestBtn').addEventListener('click', (e) => {
-      e.stopPropagation();
-      const fmt = tryFormatJson(testMsgEl.value, null);
-      if (fmt !== null) { testMsgEl.value = fmt; testMsgEl.classList.remove('field-invalid'); clearFieldErr(testErrEl); markDirty(); }
-    });
-    $('valTestBtn').addEventListener('click', (e) => {
-      e.stopPropagation();
-      if (validateJsonTextarea(testMsgEl, testErrEl, 'object')) setStatus('Test message JSON is valid.', 's-ok');
-    });
-
-    // Entry management
-    function getSelectedEntry() { return state.entries.find((e) => e.entry_id === state.selectedEntryId); }
-    function populateFromEntry(entry) {
-      defChIn.value = entry ? (entry.default_channel || '') : '';
-      defChIn.classList.remove('field-invalid'); clearFieldErr(defChErr);
-      state.channels = entry ? (entry.channels || []).map((c) => Object.assign({}, c)) : [];
-      renderChannels();
-      trackersEl.value = entry ? JSON.stringify(entry.trackers || [], null, 2) : '[]';
-      trackersEl.classList.remove('field-invalid'); clearFieldErr(trackersErrEl);
-      testMsgEl.value = entry ? JSON.stringify(entry.test_message || {}, null, 2) : '{}';
-      testMsgEl.classList.remove('field-invalid'); clearFieldErr(testErrEl);
-    }
-    function renderEntrySelector() {
-      entrySelEl.innerHTML = '';
-      for (const entry of state.entries) {
-        const opt = document.createElement('option');
-        opt.value = entry.entry_id;
-        opt.textContent = (entry.title || 'Discord API Chatter') + ' (' + entry.entry_id.slice(0, 8) + '\u2026)';
-        entrySelEl.appendChild(opt);
-      }
-      if (!state.selectedEntryId && state.entries.length) state.selectedEntryId = state.entries[0].entry_id;
-      entrySelEl.value = state.selectedEntryId || '';
-      populateFromEntry(getSelectedEntry());
-    }
-    entrySelEl.addEventListener('change', () => {
-      state.selectedEntryId = entrySelEl.value;
-      populateFromEntry(getSelectedEntry()); clearDirty(); clearStatus();
-    });
-
-    // Load
-    async function loadConfig() {
-      clearStatus(); setStatus('Loading\u2026', 's-warn');
-      const res = await apiFetch(CONFIG_URL);
-      if (!res.ok) throw new Error('Load failed (' + res.status + ')');
-      const payload = await res.json();
-      state.entries = payload.entries || [];
-      if (!state.entries.length) {
-        state.selectedEntryId = null; renderEntrySelector();
-        setStatus('No Discord API Chatter entries found. Add one via Settings \u2192 Integrations.', 's-warn');
-        return;
-      }
-      const keepSelected = state.entries.some((e) => e.entry_id === state.selectedEntryId);
-      if (!keepSelected) state.selectedEntryId = state.entries[0].entry_id;
-      renderEntrySelector(); clearDirty(); setStatus('Configuration loaded.', 's-ok');
-    }
-
-    // Save
-    async function saveConfig() {
-      const entry = getSelectedEntry();
-      if (!entry) { setStatus('No entry selected.', 's-err'); return; }
-
-      let valid = true;
-      clearFieldErr(defChErr); defChIn.classList.remove('field-invalid');
-      const defCh = defChIn.value.trim();
-      if (defCh && !isSnowflake(defCh)) {
-        setFieldErr(defChErr, 'Must be a 17\u201320 digit Discord snowflake (numbers only).');
-        defChIn.classList.add('field-invalid'); valid = false;
-      }
-      clearFieldErr(chErrEl);
-      for (const ch of state.channels) {
-        if (!isSnowflake(ch.channel_id)) {
-          setFieldErr(chErrEl, 'Channel ID "' + esc(ch.channel_id) + '" is not a valid Discord snowflake. Edit or remove it before saving.');
-          valid = false; break;
-        }
-      }
-      if (!validateJsonTextarea(trackersEl,  trackersErrEl, 'array'))  valid = false;
-      if (!validateJsonTextarea(testMsgEl,   testErrEl,     'object')) valid = false;
-      if (!valid) { setStatus('Please fix the errors above before saving.', 's-err'); return; }
-
-      let parsedTrackers, parsedTestMessage;
-      try   { parsedTrackers    = JSON.parse(trackersEl.value.trim()  || '[]'); }
-      catch (e) { setStatus('Trackers JSON: ' + e.message, 's-err'); return; }
-      try   { parsedTestMessage = JSON.parse(testMsgEl.value.trim()   || '{}'); }
-      catch (e) { setStatus('Test message JSON: ' + e.message, 's-err'); return; }
-
-      saveBtnEl.disabled = true;
-      setStatus('Saving\u2026', 's-warn');
-      try {
-        const res = await apiFetch(SAVE_URL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            entry_id: entry.entry_id, default_channel: defCh,
-            channels: state.channels, trackers: parsedTrackers, test_message: parsedTestMessage,
-          }),
-        });
-        const payload = await res.json().catch(() => ({}));
-        if (!res.ok) { setStatus(payload.message || payload.error || 'Save failed (' + res.status + ')', 's-err'); return; }
-        await loadConfig();
-        setStatus('Saved successfully. Home Assistant will reload this integration entry.', 's-ok');
-      } finally { saveBtnEl.disabled = false; }
-    }
-
-    // Unsaved-changes guard
-    window.addEventListener('beforeunload', (e) => { if (state.dirty) { e.preventDefault(); e.returnValue = ''; } });
-    [trackersEl, testMsgEl].forEach((el) => el.addEventListener('input', markDirty));
-    defChIn.addEventListener('input', () => {
-      markDirty();
-      const v = defChIn.value.trim();
-      if (v && !isSnowflake(v)) { setFieldErr(defChErr, 'Must be 17\u201320 digits (numbers only).'); defChIn.classList.add('field-invalid'); }
-      else { clearFieldErr(defChErr); defChIn.classList.remove('field-invalid'); }
-    });
-
-    $('addChBtn').addEventListener('click', addChannel);
-    newChNameEl.addEventListener('keydown', (e) => { if (e.key === 'Enter') addChannel(); });
-    newChIdEl.addEventListener('keydown',   (e) => { if (e.key === 'Enter') newChNameEl.focus(); });
-    $('reloadBtn').addEventListener('click', () => {
-      if (state.dirty && !confirm('You have unsaved changes. Reload and discard them?')) return;
-      loadConfig().catch((e) => setStatus(e.message, 's-err'));
-    });
-    $('saveBtn').addEventListener('click', () => { saveConfig().catch((e) => setStatus(e.message, 's-err')); });
-
-    loadConfig().catch((e) => setStatus(e.message, 's-err'));
-  </script>
-</body>
-</html>"""
+def _render_panel_html() -> str:
+    """Render the external panel HTML with runtime placeholders."""
+    template = _PANEL_TEMPLATE_PATH.read_text(encoding="utf-8")
+    return (
+        template.replace("__PANEL_CONFIG_URL__", PANEL_CONFIG_URL)
+        .replace("__PANEL_SAVE_URL__", PANEL_SAVE_URL)
+        .replace("__DEFAULT_LIVE_TEMPLATE__", json.dumps(DEFAULT_LIVE_TEMPLATE))
+        .replace("__DEFAULT_UPDATE_TEMPLATE__", json.dumps(DEFAULT_UPDATE_TEMPLATE))
+        .replace("__DEFAULT_OFFLINE_TEMPLATE__", json.dumps(DEFAULT_OFFLINE_TEMPLATE))
+    )
 
 
 class DiscordApiChatterPanelView(HomeAssistantView):
-    """Serve the embedded panel HTML."""
+    """Serve the external panel HTML."""
 
     url = PANEL_WEB_URL
     name = "api:discord_apichatter:panel"
@@ -657,9 +198,7 @@ class DiscordApiChatterPanelView(HomeAssistantView):
 
     async def get(self, request: web.Request) -> web.Response:
         """Return panel HTML with security headers."""
-        html = _PANEL_HTML.replace("__PANEL_CONFIG_URL__", PANEL_CONFIG_URL).replace(
-            "__PANEL_SAVE_URL__", PANEL_SAVE_URL
-        )
+        html = _render_panel_html()
         return web.Response(
             text=html,
             content_type="text/html",

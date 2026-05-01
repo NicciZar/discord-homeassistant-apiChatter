@@ -1,0 +1,909 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'self';" />
+  <title>Discord API Chatter Config</title>
+  <style>
+    :root {
+      --bg: #f6f7fb; --card: #fff; --text: #1f2937; --muted: #6b7280;
+      --line: #e5e7eb; --accent: #5865f2; --accent-hover: #4c59da;
+      --danger: #dc2626; --warn: #d97706; --ok-color: #166534; --radius: 14px;
+    }
+    *, *::before, *::after { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: radial-gradient(circle at 10% 0%, #eef2ff 0%, var(--bg) 60%);
+      color: var(--text);
+      font-family: Segoe UI, system-ui, -apple-system, sans-serif;
+      font-size: 14px;
+    }
+    .wrap { max-width: 1080px; margin: 28px auto; padding: 0 16px 48px; }
+    .card {
+      background: var(--card); border: 1px solid var(--line);
+      border-radius: var(--radius); padding: 18px 20px;
+      box-shadow: 0 4px 14px rgba(17,24,39,.06); margin-bottom: 14px;
+    }
+    details.card > summary {
+      display: flex; align-items: center; justify-content: space-between;
+      cursor: pointer; list-style: none; user-select: none;
+    }
+    details.card > summary::-webkit-details-marker { display: none; }
+    details.card[open] > summary { margin-bottom: 14px; }
+    details.card > summary > .sum-title { font-weight: 600; font-size: .95rem; }
+    h1 { margin: 0 0 6px; font-size: 1.4rem; }
+    h2 { margin: 0 0 10px; font-size: 1rem; font-weight: 700; }
+    p.muted { color: var(--muted); font-size: .88rem; margin: 0; }
+    label { display: block; margin: 12px 0 5px; font-weight: 600; font-size: .88rem; }
+    input, select, textarea, button { font: inherit; }
+    input[type="text"], select {
+      width: 100%; border: 1px solid #d1d5db; border-radius: 9px;
+      padding: 8px 11px; background: #fff; transition: border-color .15s;
+    }
+    input[type="text"]:focus, select:focus {
+      outline: none; border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(88,101,242,.15);
+    }
+    input.field-invalid { border-color: var(--danger) !important; }
+    textarea {
+      width: 100%; min-height: 160px; resize: vertical;
+      border: 1px solid #d1d5db; border-radius: 9px; padding: 9px 11px;
+      background: #fff; font-family: Consolas, ui-monospace, monospace;
+      font-size: .82rem; line-height: 1.5; transition: border-color .15s;
+    }
+    textarea:focus {
+      outline: none; border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(88,101,242,.15);
+    }
+    textarea.field-invalid { border-color: var(--danger) !important; }
+    button {
+      border: 0; border-radius: 9px; padding: 8px 14px; cursor: pointer;
+      font-weight: 500; transition: background .15s, opacity .15s;
+    }
+    button:disabled { opacity: .45; cursor: default; }
+    .btn-primary { background: var(--accent); color: #fff; }
+    .btn-primary:hover:not(:disabled) { background: var(--accent-hover); }
+    .btn-ghost { background: #f3f4f6; color: #111; }
+    .btn-ghost:hover:not(:disabled) { background: #e5e7eb; }
+    .btn-danger { background: #fee2e2; color: var(--danger); }
+    .btn-danger:hover:not(:disabled) { background: #fecaca; }
+    .btn-sm { padding: 4px 10px; font-size: .81rem; border-radius: 7px; }
+    .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-top: 10px; }
+    .sec-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+    .sec-header h2 { margin: 0; }
+    .sec-actions { display: flex; gap: 6px; align-items: center; }
+    .badge { display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: .78rem; font-weight: 600; }
+    .badge-warn { background: #fef3c7; color: var(--warn); }
+    .field-err { display: block; color: var(--danger); font-size: .82rem; margin-top: 4px; min-height: 1rem; }
+    .status { margin-top: 10px; min-height: 1.1rem; font-size: .88rem; }
+    .s-ok   { color: var(--ok-color); }
+    .s-err  { color: var(--danger); }
+    .s-warn { color: var(--warn); }
+    /* Channel table */
+    .ch-table { width: 100%; border-collapse: collapse; margin-bottom: 12px; }
+    .ch-table th {
+      text-align: left; padding: 7px 10px; font-size: .8rem; font-weight: 600;
+      background: #f9fafb; border-bottom: 1px solid var(--line);
+      color: var(--muted); text-transform: uppercase; letter-spacing: .04em;
+    }
+    .ch-table td { padding: 7px 10px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+    .ch-table tr:last-child td { border-bottom: none; }
+    .ch-table .empty { text-align: center; color: var(--muted); font-style: italic; padding: 20px; }
+    .ch-table .mono { font-family: Consolas, monospace; font-size: .83rem; }
+    .ch-table .tbl-actions { display: flex; gap: 6px; justify-content: flex-end; }
+    .add-ch-form { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; align-items: flex-start; }
+    .add-ch-form input { flex: 1 1 180px; }
+    .add-ch-form button { flex-shrink: 0; align-self: center; }
+    .schema-hint {
+      background: #f8fafc; border: 1px solid var(--line); border-radius: 9px;
+      padding: 10px 14px; font-family: Consolas, monospace; font-size: .78rem;
+      line-height: 1.5; color: #374151; white-space: pre-wrap; margin-bottom: 10px; overflow-x: auto;
+    }
+    .hdr-row { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; }
+    input[type="checkbox"] { width: auto; }
+    .tracker-list { display: grid; gap: 10px; margin: 12px 0 18px; }
+    .tracker-card {
+      border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px;
+      background: #fbfdff;
+    }
+    .tracker-head {
+      display: flex; justify-content: space-between; align-items: flex-start; gap: 10px;
+      margin-bottom: 8px;
+    }
+    .tracker-title { font-weight: 700; word-break: break-word; }
+    .tracker-subtitle { color: var(--muted); font-size: .82rem; margin-top: 3px; }
+    .tracker-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+    .tracker-meta {
+      display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px;
+      font-size: .8rem; color: #374151;
+    }
+    .tracker-meta span {
+      border-radius: 999px; background: #eef2ff; color: #334155;
+      padding: 4px 9px;
+    }
+    .tracker-form {
+      border-top: 1px solid var(--line); padding-top: 16px; margin-top: 6px;
+    }
+    .tracker-grid {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px;
+    }
+    .stack { display: flex; flex-direction: column; }
+    .checkbox-grid {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 8px 12px; margin: 14px 0 6px;
+    }
+    .checkbox-item {
+      display: flex; gap: 8px; align-items: center; border: 1px solid var(--line);
+      border-radius: 9px; padding: 8px 10px; background: #fff;
+    }
+    .checkbox-item label { margin: 0; font-weight: 500; }
+    .form-section-title { margin: 14px 0 8px; font-size: .9rem; font-weight: 700; }
+    .tracker-empty {
+      border: 1px dashed var(--line); border-radius: 10px; padding: 18px;
+      color: var(--muted); background: #fafafa; text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card hdr-row">
+      <div>
+        <h1>Discord API Chatter</h1>
+        <p class="muted">Embedded configuration editor &mdash; channels, trackers, and test defaults.</p>
+      </div>
+      <span id="dirtyBadge" class="badge badge-warn" hidden>Unsaved changes</span>
+    </div>
+
+    <div class="card">
+      <label for="entrySelect">Integration Entry</label>
+      <select id="entrySelect"></select>
+      <label for="defaultChannel">Default Channel ID</label>
+      <input id="defaultChannel" type="text" placeholder="e.g. 123456789012345678"
+             autocomplete="off" spellcheck="false" />
+      <p class="muted" style="font-size:.83rem;margin-top:5px;">
+        17&ndash;20 digit Discord snowflake. Leave blank to require an explicit channel per request.
+      </p>
+      <span id="defChErr" class="field-err"></span>
+    </div>
+
+    <div class="card">
+      <h2>Channel Entries</h2>
+      <p class="muted" style="font-size:.83rem;margin-bottom:12px;">
+        Named shortcuts for channels used by services and stream trackers.
+        Channel IDs must be Discord snowflakes (17&ndash;20 digits, numbers only).
+      </p>
+      <table class="ch-table">
+        <thead><tr><th>Channel ID</th><th>Friendly Name</th><th></th></tr></thead>
+        <tbody id="chTbody"></tbody>
+      </table>
+      <div class="add-ch-form">
+        <input id="newChId"   type="text" placeholder="Channel ID (e.g. 123456789012345678)"
+               autocomplete="off" spellcheck="false" />
+        <input id="newChName" type="text" placeholder="Friendly name (e.g. stream-updates)"
+               autocomplete="off" />
+        <button class="btn-primary btn-sm" id="addChBtn" type="button">+ Add Channel</button>
+      </div>
+      <span id="chErr" class="field-err"></span>
+    </div>
+
+    <div class="card">
+      <div class="sec-header">
+        <h2>Trackers</h2>
+        <div class="sec-actions">
+          <button class="btn-primary btn-sm" id="newTrackerBtn" type="button">+ New Tracker</button>
+        </div>
+      </div>
+      <p class="muted" style="font-size:.83rem;margin-bottom:12px;">
+        Each tracker watches one entity and controls its Discord channel override, update rules, and message templates.
+      </p>
+
+      <div id="trackerList" class="tracker-list"></div>
+      <span id="trackersErr" class="field-err"></span>
+
+      <div class="tracker-form">
+        <h3 id="trackerFormTitle" style="margin:0 0 10px;">Add Tracker</h3>
+        <div class="tracker-grid">
+          <div class="stack">
+            <label for="trackerEntityId">Entity ID</label>
+            <input id="trackerEntityId" type="text" placeholder="sensor.channel123" autocomplete="off" spellcheck="false" />
+          </div>
+          <div class="stack">
+            <label for="trackerChannelId">Channel Override</label>
+            <select id="trackerChannelId"></select>
+          </div>
+        </div>
+
+        <div class="checkbox-grid">
+          <div class="checkbox-item"><input id="trackerUpdateOnTitle" type="checkbox" /><label for="trackerUpdateOnTitle">Update on title change</label></div>
+          <div class="checkbox-item"><input id="trackerUpdateOnGame" type="checkbox" /><label for="trackerUpdateOnGame">Update on game change</label></div>
+          <div class="checkbox-item"><input id="trackerSyncNow" type="checkbox" /><label for="trackerSyncNow">Sync immediately after save</label></div>
+          <div class="checkbox-item"><input id="trackerSendLiveImage" type="checkbox" /><label for="trackerSendLiveImage">Send live image</label></div>
+          <div class="checkbox-item"><input id="trackerSendUpdateImage" type="checkbox" /><label for="trackerSendUpdateImage">Send update image</label></div>
+          <div class="checkbox-item"><input id="trackerSendOfflineImage" type="checkbox" /><label for="trackerSendOfflineImage">Send offline image</label></div>
+        </div>
+
+        <div class="form-section-title">Templates</div>
+        <label for="trackerLiveTemplate">Live Template</label>
+        <textarea id="trackerLiveTemplate" spellcheck="false"></textarea>
+        <label for="trackerUpdateTemplate">Update Template</label>
+        <textarea id="trackerUpdateTemplate" spellcheck="false"></textarea>
+        <label for="trackerOfflineTemplate">Offline Template</label>
+        <textarea id="trackerOfflineTemplate" spellcheck="false"></textarea>
+
+        <div class="row">
+          <button class="btn-primary" id="trackerSubmitBtn" type="button">Add Tracker</button>
+          <button class="btn-ghost" id="trackerCancelBtn" type="button" hidden>Cancel Edit</button>
+        </div>
+      </div>
+    </div>
+
+    <details class="card">
+      <summary>
+        <span class="sum-title">Test Message Defaults</span>
+      </summary>
+      <p class="muted" style="font-size:.83rem;margin-bottom:10px;">
+        Remembered defaults for the built-in test message flow in the Home Assistant options dialog.
+      </p>
+
+      <div class="tracker-grid">
+        <div class="stack">
+          <label for="testChannelId">Channel Override</label>
+          <select id="testChannelId"></select>
+        </div>
+        <div class="stack">
+          <label for="testEntityId">Entity ID</label>
+          <input id="testEntityId" type="text" placeholder="sensor.test_streamer" autocomplete="off" spellcheck="false" />
+        </div>
+        <div class="stack">
+          <label for="testName">Display Name</label>
+          <input id="testName" type="text" placeholder="Test Streamer" autocomplete="off" />
+        </div>
+        <div class="stack">
+          <label for="testAction">Action</label>
+          <select id="testAction">
+            <option value="live">Send live/start message</option>
+            <option value="update">Send update message</option>
+            <option value="offline">Send offline/stop message</option>
+          </select>
+        </div>
+        <div class="stack">
+          <label for="testTitle">Title</label>
+          <input id="testTitle" type="text" placeholder="Testing Discord API Chatter" autocomplete="off" />
+        </div>
+        <div class="stack">
+          <label for="testGame">Game</label>
+          <input id="testGame" type="text" placeholder="Just Chatting" autocomplete="off" />
+        </div>
+        <div class="stack">
+          <label for="testViewers">Viewers</label>
+          <input id="testViewers" type="text" placeholder="42" autocomplete="off" spellcheck="false" />
+        </div>
+        <div class="stack">
+          <label for="testStartedAt">Started At</label>
+          <input id="testStartedAt" type="text" placeholder="2026-05-01T21:00:00+00:00" autocomplete="off" spellcheck="false" />
+        </div>
+        <div class="stack">
+          <label for="testUrl">Stream URL</label>
+          <input id="testUrl" type="text" placeholder="https://www.twitch.tv/test_streamer" autocomplete="off" spellcheck="false" />
+        </div>
+        <div class="stack">
+          <label for="testThumbnailUrl">Thumbnail URL</label>
+          <input id="testThumbnailUrl" type="text" placeholder="https://.../thumbnail.jpg" autocomplete="off" spellcheck="false" />
+        </div>
+        <div class="stack">
+          <label for="testChannelPicture">Channel Picture URL</label>
+          <input id="testChannelPicture" type="text" placeholder="https://.../avatar.jpg" autocomplete="off" spellcheck="false" />
+        </div>
+      </div>
+
+      <div class="checkbox-grid">
+        <div class="checkbox-item"><input id="testSendLiveImage" type="checkbox" /><label for="testSendLiveImage">Send live image</label></div>
+        <div class="checkbox-item"><input id="testSendUpdateImage" type="checkbox" /><label for="testSendUpdateImage">Send update image</label></div>
+        <div class="checkbox-item"><input id="testSendOfflineImage" type="checkbox" /><label for="testSendOfflineImage">Send offline image</label></div>
+      </div>
+
+      <span id="testErr" class="field-err"></span>
+    </details>
+
+    <div class="card">
+      <div class="row">
+        <button class="btn-ghost" id="reloadBtn" type="button">&#8635; Reload</button>
+        <button class="btn-primary" id="saveBtn" type="button">Save All</button>
+      </div>
+      <div id="statusEl" class="status"></div>
+    </div>
+  </div>
+
+  <script>
+    'use strict';
+
+    const CONFIG_URL   = '__PANEL_CONFIG_URL__';
+    const SAVE_URL     = '__PANEL_SAVE_URL__';
+    const SNOWFLAKE_RE = /^\\d{17,20}$/;
+    const DEFAULT_LIVE_TEMPLATE = __DEFAULT_LIVE_TEMPLATE__;
+    const DEFAULT_UPDATE_TEMPLATE = __DEFAULT_UPDATE_TEMPLATE__;
+    const DEFAULT_OFFLINE_TEMPLATE = __DEFAULT_OFFLINE_TEMPLATE__;
+
+    function getAccessToken() {
+      // Home Assistant stores auth tokens in browser storage; use the access token
+      // for iframe API calls that otherwise appear unauthenticated.
+      const storageCandidates = [window.localStorage, window.sessionStorage];
+      for (const store of storageCandidates) {
+        try {
+          const raw = store.getItem('hassTokens');
+          if (!raw) continue;
+          const parsed = JSON.parse(raw);
+          if (parsed && typeof parsed.access_token === 'string' && parsed.access_token) {
+            return parsed.access_token;
+          }
+        } catch (_err) {
+          // Ignore malformed storage and try next source.
+        }
+      }
+      return null;
+    }
+
+    async function apiFetch(url, options = {}) {
+      const token = getAccessToken();
+      const headers = Object.assign({}, options.headers || {});
+      if (token) {
+        headers.Authorization = 'Bearer ' + token;
+      }
+
+      const res = await fetch(url, {
+        credentials: 'same-origin',
+        ...options,
+        headers,
+      });
+
+      if (res.status === 401) {
+        throw new Error('Load failed (401). Please refresh Home Assistant and try again.');
+      }
+      return res;
+    }
+
+    const state = {
+      entries: [],
+      selectedEntryId: null,
+      channels: [],
+      trackers: [],
+      dirty: false,
+      editingTrackerIndex: null,
+    };
+
+    const $ = (id) => document.getElementById(id);
+    const entrySelEl = $('entrySelect'), defChIn = $('defaultChannel'),
+          defChErr = $('defChErr'), chTbody = $('chTbody'),
+          newChIdEl = $('newChId'), newChNameEl = $('newChName'),
+          chErrEl = $('chErr'), trackerListEl = $('trackerList'),
+          trackersErrEl = $('trackersErr'),
+          testErrEl = $('testErr'), statusEl = $('statusEl'),
+          dirtyBadge = $('dirtyBadge'), saveBtnEl = $('saveBtn');
+
+      const trackerEntityIdEl = $('trackerEntityId');
+      const trackerChannelIdEl = $('trackerChannelId');
+      const trackerUpdateOnTitleEl = $('trackerUpdateOnTitle');
+      const trackerUpdateOnGameEl = $('trackerUpdateOnGame');
+      const trackerSyncNowEl = $('trackerSyncNow');
+      const trackerSendLiveImageEl = $('trackerSendLiveImage');
+      const trackerSendUpdateImageEl = $('trackerSendUpdateImage');
+      const trackerSendOfflineImageEl = $('trackerSendOfflineImage');
+      const trackerLiveTemplateEl = $('trackerLiveTemplate');
+      const trackerUpdateTemplateEl = $('trackerUpdateTemplate');
+      const trackerOfflineTemplateEl = $('trackerOfflineTemplate');
+      const trackerFormTitleEl = $('trackerFormTitle');
+      const trackerSubmitBtnEl = $('trackerSubmitBtn');
+      const trackerCancelBtnEl = $('trackerCancelBtn');
+      const testChannelIdEl = $('testChannelId');
+      const testEntityIdEl = $('testEntityId');
+      const testNameEl = $('testName');
+      const testActionEl = $('testAction');
+      const testTitleEl = $('testTitle');
+      const testGameEl = $('testGame');
+      const testViewersEl = $('testViewers');
+      const testStartedAtEl = $('testStartedAt');
+      const testUrlEl = $('testUrl');
+      const testThumbnailUrlEl = $('testThumbnailUrl');
+      const testChannelPictureEl = $('testChannelPicture');
+      const testSendLiveImageEl = $('testSendLiveImage');
+      const testSendUpdateImageEl = $('testSendUpdateImage');
+      const testSendOfflineImageEl = $('testSendOfflineImage');
+
+    function esc(s) {
+      return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;')
+        .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+    function isSnowflake(id) { return SNOWFLAKE_RE.test(id); }
+    function setStatus(msg, cls) { statusEl.textContent = msg; statusEl.className = 'status ' + (cls || 's-ok'); }
+    function clearStatus() { statusEl.textContent = ''; statusEl.className = 'status'; }
+    function setFieldErr(el, msg) { el.textContent = msg || ''; }
+    function clearFieldErr(el)    { el.textContent = ''; }
+    function markDirty()  { state.dirty = true;  dirtyBadge.hidden = false; }
+    function clearDirty() { state.dirty = false; dirtyBadge.hidden = true;  }
+    function defaultStartedAt() {
+      return new Date().toISOString().replace(/\.\d{3}Z$/, 'Z');
+    }
+    function slugifyText(value) {
+      return String(value || '')
+        .toLowerCase()
+        .trim()
+        .replace(/[^a-z0-9._-]+/g, '-')
+        .replace(/^-+|-+$/g, '') || 'tracker';
+    }
+    function buildTrackerId(entityId, channelId, entryId) {
+      return slugifyText((entityId || '') + '_' + (channelId || 'default') + '_' + (entryId || 'auto'));
+    }
+    function normalizeTracker(tracker) {
+      const entityId = String(tracker.entity_id || '').trim();
+      const channelId = String(tracker.channel_id || '').trim();
+      return {
+        tracker_id: String(tracker.tracker_id || buildTrackerId(entityId, channelId, state.selectedEntryId)).trim(),
+        entity_id: entityId,
+        channel_id: channelId,
+        update_on_title_change: tracker.update_on_title_change !== false,
+        update_on_game_change: tracker.update_on_game_change !== false,
+        sync_now: tracker.sync_now !== false,
+        live_template: String(tracker.live_template || DEFAULT_LIVE_TEMPLATE),
+        update_template: String(tracker.update_template || DEFAULT_UPDATE_TEMPLATE),
+        offline_template: String(tracker.offline_template || DEFAULT_OFFLINE_TEMPLATE),
+        send_live_image: tracker.send_live_image !== false,
+        send_update_image: tracker.send_update_image !== false,
+        send_offline_image: tracker.send_offline_image !== false,
+      };
+    }
+
+    // Channel table
+    function renderChannels() {
+      chTbody.innerHTML = '';
+      if (!state.channels.length) {
+        chTbody.innerHTML = '<tr><td colspan="3" class="empty">No channels configured &mdash; use the form below to add one.</td></tr>';
+        return;
+      }
+      state.channels.forEach((ch, idx) => {
+        const tr = document.createElement('tr');
+        tr.innerHTML =
+          '<td class="mono">' + esc(ch.channel_id) + '</td>' +
+          '<td>' + esc(ch.channel_name) + '</td>' +
+          '<td class="tbl-actions">' +
+            '<button class="btn-ghost btn-sm" onclick="startEditChannel(' + idx + ')">Edit</button>' +
+            '<button class="btn-danger btn-sm" onclick="removeChannel(' + idx + ')">Remove</button>' +
+          '</td>';
+        chTbody.appendChild(tr);
+      });
+      renderTrackerChannelOptions();
+      renderTrackers();
+    }
+    function addChannel() {
+      clearFieldErr(chErrEl);
+      newChIdEl.classList.remove('field-invalid');
+      newChNameEl.classList.remove('field-invalid');
+      const id = newChIdEl.value.trim(), name = newChNameEl.value.trim();
+      if (!id || !name) {
+        setFieldErr(chErrEl, 'Both Channel ID and a friendly name are required.');
+        if (!id)   newChIdEl.classList.add('field-invalid');
+        if (!name) newChNameEl.classList.add('field-invalid');
+        return;
+      }
+      if (!isSnowflake(id)) {
+        setFieldErr(chErrEl, 'Channel ID must be a 17\u201320 digit Discord snowflake (numbers only).');
+        newChIdEl.classList.add('field-invalid'); return;
+      }
+      if (state.channels.some((c) => c.channel_id === id)) {
+        setFieldErr(chErrEl, 'A channel with ID "' + esc(id) + '" already exists.');
+        newChIdEl.classList.add('field-invalid'); return;
+      }
+      state.channels.push({ channel_id: id, channel_name: name });
+      newChIdEl.value = ''; newChNameEl.value = '';
+      renderChannels(); markDirty();
+    }
+    function removeChannel(idx) { state.channels.splice(idx, 1); renderChannels(); markDirty(); }
+    function startEditChannel(idx) {
+      const ch = state.channels[idx];
+      newChIdEl.value = ch.channel_id; newChNameEl.value = ch.channel_name;
+      state.channels.splice(idx, 1); renderChannels();
+      clearFieldErr(chErrEl); newChIdEl.focus(); markDirty();
+    }
+
+    function renderTrackerChannelOptions(selectedValue = trackerChannelIdEl.value) {
+      const options = [{ value: '', label: 'Use default channel' }].concat(
+        state.channels.map((channel) => ({
+          value: channel.channel_id,
+          label: channel.channel_name + ' (' + channel.channel_id + ')',
+        }))
+      );
+
+      if (selectedValue && !options.some((option) => option.value === selectedValue)) {
+        options.push({ value: selectedValue, label: selectedValue + ' (not in channel list)' });
+      }
+
+      trackerChannelIdEl.innerHTML = options.map((option) =>
+        '<option value="' + esc(option.value) + '">' + esc(option.label) + '</option>'
+      ).join('');
+      trackerChannelIdEl.value = selectedValue || '';
+    }
+
+    function renderTestChannelOptions(selectedValue = testChannelIdEl.value) {
+      const options = [{ value: '', label: 'Use default channel' }].concat(
+        state.channels.map((channel) => ({
+          value: channel.channel_id,
+          label: channel.channel_name + ' (' + channel.channel_id + ')',
+        }))
+      );
+
+      if (selectedValue && !options.some((option) => option.value === selectedValue)) {
+        options.push({ value: selectedValue, label: selectedValue + ' (not in channel list)' });
+      }
+
+      testChannelIdEl.innerHTML = options.map((option) =>
+        '<option value="' + esc(option.value) + '">' + esc(option.label) + '</option>'
+      ).join('');
+      testChannelIdEl.value = selectedValue || '';
+    }
+
+    function normalizeTestMessage(testMessage) {
+      return {
+        channel_id: String(testMessage.channel_id || '').trim(),
+        entity_id: String(testMessage.entity_id || 'sensor.test_streamer').trim() || 'sensor.test_streamer',
+        test_name: String(testMessage.test_name || 'Test Streamer').trim() || 'Test Streamer',
+        test_action: String(testMessage.test_action || 'live').trim() || 'live',
+        test_title: String(testMessage.test_title || 'Testing Discord API Chatter').trim() || 'Testing Discord API Chatter',
+        test_game: String(testMessage.test_game || 'Just Chatting').trim() || 'Just Chatting',
+        test_viewers: testMessage.test_viewers === null || testMessage.test_viewers === undefined ? '42' : String(testMessage.test_viewers),
+        test_started_at: String(testMessage.test_started_at || defaultStartedAt()).trim() || defaultStartedAt(),
+        url: String(testMessage.url || 'https://www.twitch.tv/test_streamer').trim() || 'https://www.twitch.tv/test_streamer',
+        test_thumbnail_url: String(testMessage.test_thumbnail_url || '').trim(),
+        test_channel_picture: String(testMessage.test_channel_picture || '').trim(),
+        test_send_live_image: testMessage.test_send_live_image !== false,
+        test_send_update_image: testMessage.test_send_update_image !== false,
+        test_send_offline_image: testMessage.test_send_offline_image !== false,
+      };
+    }
+
+    function populateTestMessageForm(testMessage) {
+      const normalized = normalizeTestMessage(testMessage || {});
+      renderTestChannelOptions(normalized.channel_id);
+      testEntityIdEl.value = normalized.entity_id;
+      testNameEl.value = normalized.test_name;
+      testActionEl.value = normalized.test_action;
+      testTitleEl.value = normalized.test_title;
+      testGameEl.value = normalized.test_game;
+      testViewersEl.value = normalized.test_viewers;
+      testStartedAtEl.value = normalized.test_started_at;
+      testUrlEl.value = normalized.url;
+      testThumbnailUrlEl.value = normalized.test_thumbnail_url;
+      testChannelPictureEl.value = normalized.test_channel_picture;
+      testSendLiveImageEl.checked = normalized.test_send_live_image;
+      testSendUpdateImageEl.checked = normalized.test_send_update_image;
+      testSendOfflineImageEl.checked = normalized.test_send_offline_image;
+      clearFieldErr(testErrEl);
+    }
+
+    function collectTestMessageForm() {
+      const viewers = testViewersEl.value.trim();
+      if (viewers && !/^\d+$/.test(viewers)) {
+        throw new Error('Viewers must be a whole number.');
+      }
+
+      return {
+        channel_id: testChannelIdEl.value.trim(),
+        entity_id: testEntityIdEl.value.trim() || 'sensor.test_streamer',
+        test_name: testNameEl.value.trim() || 'Test Streamer',
+        test_action: testActionEl.value,
+        test_title: testTitleEl.value.trim() || 'Testing Discord API Chatter',
+        test_game: testGameEl.value.trim() || 'Just Chatting',
+        test_viewers: viewers || '42',
+        test_started_at: testStartedAtEl.value.trim() || defaultStartedAt(),
+        url: testUrlEl.value.trim() || 'https://www.twitch.tv/test_streamer',
+        test_thumbnail_url: testThumbnailUrlEl.value.trim(),
+        test_channel_picture: testChannelPictureEl.value.trim(),
+        test_send_live_image: testSendLiveImageEl.checked,
+        test_send_update_image: testSendUpdateImageEl.checked,
+        test_send_offline_image: testSendOfflineImageEl.checked,
+      };
+    }
+
+    function trackerChannelLabel(channelId) {
+      if (!channelId) return 'Default channel';
+      const channel = state.channels.find((entry) => entry.channel_id === channelId);
+      return channel ? (channel.channel_name + ' (' + channel.channel_id + ')') : channelId;
+    }
+
+    function trackerSummaryBadges(tracker) {
+      return [
+        trackerChannelLabel(tracker.channel_id),
+        tracker.update_on_title_change ? 'Title updates on' : 'Title updates off',
+        tracker.update_on_game_change ? 'Game updates on' : 'Game updates off',
+        tracker.send_live_image ? 'Live image on' : 'Live image off',
+      ];
+    }
+
+    function renderTrackers() {
+      trackerListEl.innerHTML = '';
+      if (!state.trackers.length) {
+        trackerListEl.innerHTML = '<div class="tracker-empty">No trackers configured yet. Add one below.</div>';
+        return;
+      }
+
+      state.trackers.forEach((tracker, idx) => {
+        const card = document.createElement('div');
+        card.className = 'tracker-card';
+        card.innerHTML =
+          '<div class="tracker-head">' +
+            '<div>' +
+              '<div class="tracker-title">' + esc(tracker.entity_id) + '</div>' +
+              '<div class="tracker-subtitle">Tracker ID: ' + esc(tracker.tracker_id) + '</div>' +
+            '</div>' +
+            '<div class="tracker-actions">' +
+              '<button class="btn-ghost btn-sm" type="button" onclick="startEditTracker(' + idx + ')">Edit</button>' +
+              '<button class="btn-danger btn-sm" type="button" onclick="removeTracker(' + idx + ')">Remove</button>' +
+            '</div>' +
+          '</div>' +
+          '<div class="tracker-meta">' +
+            trackerSummaryBadges(tracker).map((badge) => '<span>' + esc(badge) + '</span>').join('') +
+          '</div>';
+        trackerListEl.appendChild(card);
+      });
+    }
+
+    function resetTrackerForm() {
+      state.editingTrackerIndex = null;
+      trackerFormTitleEl.textContent = 'Add Tracker';
+      trackerSubmitBtnEl.textContent = 'Add Tracker';
+      trackerCancelBtnEl.hidden = true;
+      trackerEntityIdEl.value = '';
+      renderTrackerChannelOptions('');
+      trackerUpdateOnTitleEl.checked = true;
+      trackerUpdateOnGameEl.checked = true;
+      trackerSyncNowEl.checked = true;
+      trackerSendLiveImageEl.checked = true;
+      trackerSendUpdateImageEl.checked = true;
+      trackerSendOfflineImageEl.checked = true;
+      trackerLiveTemplateEl.value = DEFAULT_LIVE_TEMPLATE;
+      trackerUpdateTemplateEl.value = DEFAULT_UPDATE_TEMPLATE;
+      trackerOfflineTemplateEl.value = DEFAULT_OFFLINE_TEMPLATE;
+      clearFieldErr(trackersErrEl);
+    }
+
+    function fillTrackerForm(tracker, index) {
+      state.editingTrackerIndex = index;
+      trackerFormTitleEl.textContent = 'Edit Tracker';
+      trackerSubmitBtnEl.textContent = 'Save Tracker';
+      trackerCancelBtnEl.hidden = false;
+      trackerEntityIdEl.value = tracker.entity_id;
+      renderTrackerChannelOptions(tracker.channel_id || '');
+      trackerUpdateOnTitleEl.checked = !!tracker.update_on_title_change;
+      trackerUpdateOnGameEl.checked = !!tracker.update_on_game_change;
+      trackerSyncNowEl.checked = !!tracker.sync_now;
+      trackerSendLiveImageEl.checked = !!tracker.send_live_image;
+      trackerSendUpdateImageEl.checked = !!tracker.send_update_image;
+      trackerSendOfflineImageEl.checked = !!tracker.send_offline_image;
+      trackerLiveTemplateEl.value = tracker.live_template || DEFAULT_LIVE_TEMPLATE;
+      trackerUpdateTemplateEl.value = tracker.update_template || DEFAULT_UPDATE_TEMPLATE;
+      trackerOfflineTemplateEl.value = tracker.offline_template || DEFAULT_OFFLINE_TEMPLATE;
+      clearFieldErr(trackersErrEl);
+    }
+
+    function collectTrackerForm() {
+      const entityId = trackerEntityIdEl.value.trim();
+      const channelId = trackerChannelIdEl.value.trim();
+      if (!entityId) {
+        throw new Error('Entity ID is required for every tracker.');
+      }
+
+      const existing = state.editingTrackerIndex !== null ? state.trackers[state.editingTrackerIndex] : null;
+      return normalizeTracker({
+        tracker_id: existing ? existing.tracker_id : buildTrackerId(entityId, channelId, state.selectedEntryId),
+        entity_id: entityId,
+        channel_id: channelId,
+        update_on_title_change: trackerUpdateOnTitleEl.checked,
+        update_on_game_change: trackerUpdateOnGameEl.checked,
+        sync_now: trackerSyncNowEl.checked,
+        live_template: trackerLiveTemplateEl.value.trim() || DEFAULT_LIVE_TEMPLATE,
+        update_template: trackerUpdateTemplateEl.value.trim() || DEFAULT_UPDATE_TEMPLATE,
+        offline_template: trackerOfflineTemplateEl.value.trim() || DEFAULT_OFFLINE_TEMPLATE,
+        send_live_image: trackerSendLiveImageEl.checked,
+        send_update_image: trackerSendUpdateImageEl.checked,
+        send_offline_image: trackerSendOfflineImageEl.checked,
+      });
+    }
+
+    function upsertTrackerFromForm() {
+      clearFieldErr(trackersErrEl);
+      try {
+        const tracker = collectTrackerForm();
+        const duplicateIndex = state.trackers.findIndex((entry, idx) =>
+          idx !== state.editingTrackerIndex && entry.tracker_id === tracker.tracker_id
+        );
+        if (duplicateIndex !== -1) {
+          throw new Error('Another tracker already uses this generated tracker ID. Change entity or channel.');
+        }
+
+        if (state.editingTrackerIndex === null) {
+          state.trackers.push(tracker);
+        } else {
+          state.trackers[state.editingTrackerIndex] = tracker;
+        }
+
+        renderTrackers();
+        resetTrackerForm();
+        markDirty();
+      } catch (error) {
+        setFieldErr(trackersErrEl, error.message || String(error));
+      }
+    }
+
+    function removeTracker(idx) {
+      state.trackers.splice(idx, 1);
+      if (state.editingTrackerIndex === idx) {
+        resetTrackerForm();
+      } else if (state.editingTrackerIndex !== null && idx < state.editingTrackerIndex) {
+        state.editingTrackerIndex -= 1;
+      }
+      renderTrackers();
+      markDirty();
+    }
+
+    function startEditTracker(idx) {
+      fillTrackerForm(state.trackers[idx], idx);
+      trackerEntityIdEl.focus();
+    }
+
+    window.removeTracker = removeTracker;
+    window.startEditTracker = startEditTracker;
+
+    // Entry management
+    function getSelectedEntry() { return state.entries.find((e) => e.entry_id === state.selectedEntryId); }
+    function populateFromEntry(entry) {
+      defChIn.value = entry ? (entry.default_channel || '') : '';
+      defChIn.classList.remove('field-invalid'); clearFieldErr(defChErr);
+      state.channels = entry ? (entry.channels || []).map((c) => Object.assign({}, c)) : [];
+      renderChannels();
+      state.trackers = entry ? (entry.trackers || []).map((tracker) => normalizeTracker(tracker)) : [];
+      renderTrackers();
+      resetTrackerForm();
+      populateTestMessageForm(entry ? (entry.test_message || {}) : {});
+    }
+    function renderEntrySelector() {
+      entrySelEl.innerHTML = '';
+      for (const entry of state.entries) {
+        const opt = document.createElement('option');
+        opt.value = entry.entry_id;
+        opt.textContent = (entry.title || 'Discord API Chatter') + ' (' + entry.entry_id.slice(0, 8) + '\u2026)';
+        entrySelEl.appendChild(opt);
+      }
+      if (!state.selectedEntryId && state.entries.length) state.selectedEntryId = state.entries[0].entry_id;
+      entrySelEl.value = state.selectedEntryId || '';
+      populateFromEntry(getSelectedEntry());
+    }
+    entrySelEl.addEventListener('change', () => {
+      state.selectedEntryId = entrySelEl.value;
+      populateFromEntry(getSelectedEntry()); clearDirty(); clearStatus();
+    });
+
+    // Load
+    async function loadConfig() {
+      clearStatus(); setStatus('Loading\u2026', 's-warn');
+      const res = await apiFetch(CONFIG_URL);
+      if (!res.ok) throw new Error('Load failed (' + res.status + ')');
+      const payload = await res.json();
+      state.entries = payload.entries || [];
+      if (!state.entries.length) {
+        state.selectedEntryId = null; renderEntrySelector();
+        setStatus('No Discord API Chatter entries found. Add one via Settings \u2192 Integrations.', 's-warn');
+        return;
+      }
+      const keepSelected = state.entries.some((e) => e.entry_id === state.selectedEntryId);
+      if (!keepSelected) state.selectedEntryId = state.entries[0].entry_id;
+      renderEntrySelector(); clearDirty(); setStatus('Configuration loaded.', 's-ok');
+    }
+
+    // Save
+    async function saveConfig() {
+      const entry = getSelectedEntry();
+      if (!entry) { setStatus('No entry selected.', 's-err'); return; }
+
+      let valid = true;
+      clearFieldErr(defChErr); defChIn.classList.remove('field-invalid');
+      const defCh = defChIn.value.trim();
+      if (defCh && !isSnowflake(defCh)) {
+        setFieldErr(defChErr, 'Must be a 17\u201320 digit Discord snowflake (numbers only).');
+        defChIn.classList.add('field-invalid'); valid = false;
+      }
+      clearFieldErr(chErrEl);
+      for (const ch of state.channels) {
+        if (!isSnowflake(ch.channel_id)) {
+          setFieldErr(chErrEl, 'Channel ID "' + esc(ch.channel_id) + '" is not a valid Discord snowflake. Edit or remove it before saving.');
+          valid = false; break;
+        }
+      }
+      if (state.trackers.some((tracker) => !tracker.entity_id)) {
+        setFieldErr(trackersErrEl, 'Every tracker must have an entity ID.');
+        valid = false;
+      }
+      let testMessage;
+      try {
+        testMessage = collectTestMessageForm();
+      } catch (e) {
+        setFieldErr(testErrEl, e.message || String(e));
+        valid = false;
+      }
+      if (!valid) { setStatus('Please fix the errors above before saving.', 's-err'); return; }
+
+      saveBtnEl.disabled = true;
+      setStatus('Saving\u2026', 's-warn');
+      try {
+        const res = await apiFetch(SAVE_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            entry_id: entry.entry_id, default_channel: defCh,
+            channels: state.channels, trackers: state.trackers, test_message: testMessage,
+          }),
+        });
+        const payload = await res.json().catch(() => ({}));
+        if (!res.ok) { setStatus(payload.message || payload.error || 'Save failed (' + res.status + ')', 's-err'); return; }
+        await loadConfig();
+        setStatus('Saved successfully. Home Assistant will reload this integration entry.', 's-ok');
+      } finally { saveBtnEl.disabled = false; }
+    }
+
+    // Unsaved-changes guard
+    window.addEventListener('beforeunload', (e) => { if (state.dirty) { e.preventDefault(); e.returnValue = ''; } });
+    [
+      trackerEntityIdEl,
+      trackerChannelIdEl,
+      trackerUpdateOnTitleEl,
+      trackerUpdateOnGameEl,
+      trackerSyncNowEl,
+      trackerSendLiveImageEl,
+      trackerSendUpdateImageEl,
+      trackerSendOfflineImageEl,
+      trackerLiveTemplateEl,
+      trackerUpdateTemplateEl,
+      trackerOfflineTemplateEl,
+      testChannelIdEl,
+      testEntityIdEl,
+      testNameEl,
+      testActionEl,
+      testTitleEl,
+      testGameEl,
+      testViewersEl,
+      testStartedAtEl,
+      testUrlEl,
+      testThumbnailUrlEl,
+      testChannelPictureEl,
+      testSendLiveImageEl,
+      testSendUpdateImageEl,
+      testSendOfflineImageEl,
+    ].forEach((el) => el.addEventListener('input', markDirty));
+    defChIn.addEventListener('input', () => {
+      markDirty();
+      const v = defChIn.value.trim();
+      if (v && !isSnowflake(v)) { setFieldErr(defChErr, 'Must be 17\u201320 digits (numbers only).'); defChIn.classList.add('field-invalid'); }
+      else { clearFieldErr(defChErr); defChIn.classList.remove('field-invalid'); }
+    });
+
+    $('addChBtn').addEventListener('click', addChannel);
+    $('newTrackerBtn').addEventListener('click', () => {
+      resetTrackerForm();
+      trackerEntityIdEl.focus();
+    });
+    trackerSubmitBtnEl.addEventListener('click', upsertTrackerFromForm);
+    trackerCancelBtnEl.addEventListener('click', resetTrackerForm);
+    newChNameEl.addEventListener('keydown', (e) => { if (e.key === 'Enter') addChannel(); });
+    newChIdEl.addEventListener('keydown',   (e) => { if (e.key === 'Enter') newChNameEl.focus(); });
+    trackerEntityIdEl.addEventListener('keydown', (e) => { if (e.key === 'Enter') upsertTrackerFromForm(); });
+    $('reloadBtn').addEventListener('click', () => {
+      if (state.dirty && !confirm('You have unsaved changes. Reload and discard them?')) return;
+      loadConfig().catch((e) => setStatus(e.message, 's-err'));
+    });
+    $('saveBtn').addEventListener('click', () => { saveConfig().catch((e) => setStatus(e.message, 's-err')); });
+
+    resetTrackerForm();
+    loadConfig().catch((e) => setStatus(e.message, 's-err'));
+  </script>
+</body>
+</html>
+
