@@ -14,7 +14,7 @@ from aiohttp import web
 from homeassistant.components.http import HomeAssistantView
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import ATTR_ENTITY_ID
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, State
 from homeassistant.helpers.typing import ConfigType
 
 from .const import (
@@ -35,6 +35,7 @@ from .const import (
     CONF_DEFAULT_CHANNEL,
     CONF_TEST_MESSAGE,
     CONF_TRACKERS,
+    DATA_ENTRIES,
     DATA_STREAM_TRACKER,
     DOMAIN,
 )
@@ -50,6 +51,7 @@ PANEL_URL_PATH = "discord-apichatter-config"
 PANEL_WEB_URL = "/api/discord_apichatter/panel"
 PANEL_CONFIG_URL = "/api/discord_apichatter/panel/config"
 PANEL_SAVE_URL = "/api/discord_apichatter/panel/save"
+PANEL_TEST_URL = "/api/discord_apichatter/panel/test"
 
 # Discord snowflake IDs are numeric strings of 17�20 digits.
 _SNOWFLAKE_RE = re.compile(r"^\d{17,20}$")
@@ -179,6 +181,7 @@ def _render_panel_html() -> str:
     return (
         template.replace("__PANEL_CONFIG_URL__", PANEL_CONFIG_URL)
         .replace("__PANEL_SAVE_URL__", PANEL_SAVE_URL)
+        .replace("__PANEL_TEST_URL__", PANEL_TEST_URL)
         .replace("__DEFAULT_LIVE_TEMPLATE__", json.dumps(DEFAULT_LIVE_TEMPLATE))
         .replace("__DEFAULT_UPDATE_TEMPLATE__", json.dumps(DEFAULT_UPDATE_TEMPLATE))
         .replace("__DEFAULT_OFFLINE_TEMPLATE__", json.dumps(DEFAULT_OFFLINE_TEMPLATE))
@@ -393,6 +396,177 @@ class DiscordApiChatterPanelSaveView(HomeAssistantView):
         return self.json({"ok": True})
 
 
+class DiscordApiChatterPanelTestView(HomeAssistantView):
+    """Send a test Discord message from the panel."""
+
+    url = PANEL_TEST_URL
+    name = "api:discord_apichatter:panel_test"
+    requires_auth = True
+    requires_admin = True
+
+    async def post(self, request: web.Request) -> web.Response:
+        """Render and send a test message using the panel form values."""
+        hass: HomeAssistant = request.app["hass"]
+
+        content_length = request.content_length
+        if content_length is not None and content_length > _MAX_PAYLOAD_BYTES:
+            return self.json_message("Request payload too large.", status_code=413)
+
+        try:
+            body = await request.read()
+        except Exception:
+            return self.json_message("Failed to read request body.", status_code=400)
+
+        if len(body) > _MAX_PAYLOAD_BYTES:
+            return self.json_message("Request payload too large.", status_code=413)
+
+        try:
+            payload: ConfigType = json.loads(body)
+        except (json.JSONDecodeError, ValueError):
+            return self.json_message("Invalid JSON payload.", status_code=400)
+
+        if not isinstance(payload, dict):
+            return self.json_message("Payload must be a JSON object.", status_code=400)
+
+        entry_id = str(payload.get("entry_id", "")).strip()
+        if not entry_id:
+            return self.json_message("'entry_id' is required.", status_code=400)
+
+        entry = _find_entry_by_id(hass, entry_id)
+        if entry is None:
+            return self.json_message("Entry not found.", status_code=404)
+
+        # Resolve the Discord client for this entry.
+        entry_data = hass.data.get(DOMAIN, {}).get(DATA_ENTRIES, {}).get(entry_id)
+        if entry_data is None:
+            return self.json_message(
+                "Integration entry is not loaded.", status_code=503
+            )
+        manager = hass.data.get(DOMAIN, {}).get(DATA_STREAM_TRACKER)
+        if manager is None:
+            return self.json_message(
+                "Stream tracker manager is not available.", status_code=503
+            )
+
+        client = entry_data["client"]
+
+        # Resolve channel – form override wins, then entry default.
+        channel_id = str(payload.get(ATTR_CHANNEL_ID, "")).strip()
+        if not channel_id:
+            channel_id = str(entry.data.get(CONF_DEFAULT_CHANNEL, "")).strip()
+        if not channel_id:
+            return self.json_message(
+                "No channel ID supplied and no default channel is configured.",
+                status_code=400,
+            )
+        if not _SNOWFLAKE_RE.match(channel_id):
+            return self.json_message(
+                "'channel_id' must be a Discord snowflake (17\u201320 digits).",
+                status_code=400,
+            )
+
+        entity_id = str(payload.get(ATTR_ENTITY_ID, "sensor.test")).strip()
+        action = str(payload.get("test_action", "live")).strip()
+        if action not in {"live", "update", "offline"}:
+            return self.json_message(
+                "'test_action' must be 'live', 'update', or 'offline'.", status_code=400
+            )
+
+        thumbnail_url = str(payload.get("test_thumbnail_url", "")).strip() or None
+        channel_picture = str(payload.get("test_channel_picture", "")).strip() or None
+
+        # Build a fake tracker config using the entry's saved test_message defaults
+        # for templates (so the panel test honours any custom templates on saved trackers).
+        saved_test = (entry.options or {}).get(CONF_TEST_MESSAGE, {})
+        fake_tracker = {
+            ATTR_ENTITY_ID: entity_id,
+            ATTR_LIVE_TEMPLATE: saved_test.get(ATTR_LIVE_TEMPLATE, DEFAULT_LIVE_TEMPLATE),
+            ATTR_UPDATE_TEMPLATE: saved_test.get(ATTR_UPDATE_TEMPLATE, DEFAULT_UPDATE_TEMPLATE),
+            ATTR_OFFLINE_TEMPLATE: saved_test.get(ATTR_OFFLINE_TEMPLATE, DEFAULT_OFFLINE_TEMPLATE),
+            "last_title": saved_test.get("last_title"),
+            "last_game": saved_test.get("last_game"),
+            "last_viewers": saved_test.get("last_viewers"),
+            "last_started_at": saved_test.get("last_started_at"),
+            "last_thumbnail_url": thumbnail_url,
+            "last_channel_picture": channel_picture,
+            "url": str(payload.get("url", "")).strip() or None,
+        }
+
+        synthetic_state = State(
+            entity_id,
+            "offline" if action == "offline" else "streaming",
+            {
+                "friendly_name": str(payload.get("test_name", entity_id)),
+                "title": str(payload.get("test_title", "")).strip() or None,
+                "game": str(payload.get("test_game", "")).strip() or None,
+                "game_name": str(payload.get("test_game", "")).strip() or None,
+                "viewers": str(payload.get("test_viewers", "")).strip() or None,
+                "started_at": str(payload.get("test_started_at", "")).strip() or None,
+                "thumbnail_url": thumbnail_url,
+                "entity_picture": thumbnail_url,
+                "channel_picture": channel_picture,
+                "url": fake_tracker["url"],
+            },
+        )
+
+        try:
+            content = manager._render_message(
+                fake_tracker, "panel_test", synthetic_state, action
+            )
+        except Exception as err:  # pragma: no cover
+            return self.json_message(f"Template render failed: {err}", status_code=422)
+
+        embeds = manager._build_embeds(thumbnail_url, channel_picture)
+        include_image = {
+            "live": bool(payload.get("test_send_live_image", True)),
+            "update": bool(payload.get("test_send_update_image", True)),
+            "offline": bool(payload.get("test_send_offline_image", True)),
+        }
+        action_embeds = embeds if include_image.get(action, True) else []
+
+        message_id = saved_test.get(ATTR_MESSAGE_ID)
+        try:
+            if action == "live" or not message_id:
+                response = await client.async_send_message(
+                    channel_id, content, embeds=action_embeds
+                )
+                message_id = response.get("id", message_id)
+            else:
+                try:
+                    response = await client.async_edit_message(
+                        channel_id, str(message_id), content=content, embeds=action_embeds
+                    )
+                except Exception:
+                    response = await client.async_send_message(
+                        channel_id, content, embeds=action_embeds
+                    )
+                    message_id = response.get("id", message_id)
+        except Exception as err:
+            _LOGGER.warning("Panel test message failed: %s", err)
+            return self.json_message(f"Discord API error: {err}", status_code=502)
+
+        # Persist the updated test state (including the new message_id) back to options.
+        new_test = dict(saved_test) | dict(payload) | {
+            ATTR_CHANNEL_ID: channel_id,
+            ATTR_MESSAGE_ID: message_id,
+            "last_title": str(payload.get("test_title", "")).strip() or None,
+            "last_game": str(payload.get("test_game", "")).strip() or None,
+            "last_viewers": str(payload.get("test_viewers", "")).strip() or None,
+            "last_started_at": str(payload.get("test_started_at", "")).strip() or None,
+        }
+        # Strip keys not in the allowed set before persisting.
+        safe_test = {k: v for k, v in new_test.items() if k in _TEST_MESSAGE_ALLOWED_KEYS}
+        new_options = dict(entry.options or {})
+        new_options[CONF_TEST_MESSAGE] = safe_test
+        hass.config_entries.async_update_entry(entry, options=new_options)
+
+        _LOGGER.debug(
+            "Panel test message sent (action=%s, channel=%s, message_id=%s)",
+            action, channel_id, message_id,
+        )
+        return self.json({"ok": True, "message_id": message_id, "action": action})
+
+
 async def async_setup_panel(hass: HomeAssistant) -> None:
     """Register panel views and sidebar item."""
     domain_data = hass.data.setdefault(DOMAIN, {})
@@ -402,6 +576,7 @@ async def async_setup_panel(hass: HomeAssistant) -> None:
     hass.http.register_view(DiscordApiChatterPanelView())
     hass.http.register_view(DiscordApiChatterPanelConfigView())
     hass.http.register_view(DiscordApiChatterPanelSaveView())
+    hass.http.register_view(DiscordApiChatterPanelTestView())
 
     frontend_component = getattr(getattr(hass, "components", None), "frontend", None)
     if frontend_component is not None:

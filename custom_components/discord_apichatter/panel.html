@@ -33,6 +33,11 @@
     details.card > summary::-webkit-details-marker { display: none; }
     details.card[open] > summary { margin-bottom: 14px; }
     details.card > summary > .sum-title { font-weight: 600; font-size: .95rem; }
+    details.card > summary > .sum-chevron {
+      font-size: .8rem; color: var(--muted); transition: transform .2s;
+      margin-left: auto; padding-left: 8px; line-height: 1;
+    }
+    details.card[open] > summary > .sum-chevron { transform: rotate(180deg); }
     h1 { margin: 0 0 6px; font-size: 1.4rem; }
     h2 { margin: 0 0 10px; font-size: 1rem; font-weight: 700; }
     p.muted { color: var(--muted); font-size: .88rem; margin: 0; }
@@ -242,6 +247,7 @@
     <details class="card">
       <summary>
         <span class="sum-title">Test Message Defaults</span>
+        <span class="sum-chevron">&#9660;</span>
       </summary>
       <p class="muted" style="font-size:.83rem;margin-bottom:10px;">
         Remembered defaults for the built-in test message flow in the Home Assistant options dialog.
@@ -305,6 +311,10 @@
       </div>
 
       <span id="testErr" class="field-err"></span>
+      <div class="row" style="margin-top:14px;">
+        <button class="btn-primary" id="sendTestBtn" type="button">&#9654; Send Test Message</button>
+      </div>
+      <div id="testStatusEl" class="status"></div>
     </details>
 
     <div class="card">
@@ -321,6 +331,7 @@
 
     const CONFIG_URL   = '__PANEL_CONFIG_URL__';
     const SAVE_URL     = '__PANEL_SAVE_URL__';
+    const TEST_URL     = '__PANEL_TEST_URL__';
     const SNOWFLAKE_RE = /^\\d{17,20}$/;
     const DEFAULT_LIVE_TEMPLATE = __DEFAULT_LIVE_TEMPLATE__;
     const DEFAULT_UPDATE_TEMPLATE = __DEFAULT_UPDATE_TEMPLATE__;
@@ -799,7 +810,6 @@
       renderEntrySelector(); clearDirty(); setStatus('Configuration loaded.', 's-ok');
     }
 
-    // Save
     async function saveConfig() {
       const entry = getSelectedEntry();
       if (!entry) { setStatus('No entry selected.', 's-err'); return; }
@@ -847,6 +857,43 @@
         await loadConfig();
         setStatus('Saved successfully. Home Assistant will reload this integration entry.', 's-ok');
       } finally { saveBtnEl.disabled = false; }
+    }
+
+    // Send test message
+    async function sendTestMessage() {
+      const entry = getSelectedEntry();
+      if (!entry) { $('testStatusEl').textContent = 'No entry selected.'; $('testStatusEl').className = 'status s-err'; return; }
+
+      clearFieldErr(testErrEl);
+      let testData;
+      try {
+        testData = collectTestMessageForm();
+      } catch (e) {
+        setFieldErr(testErrEl, e.message || String(e));
+        return;
+      }
+
+      const btn = $('sendTestBtn');
+      btn.disabled = true;
+      $('testStatusEl').textContent = 'Sending\u2026';
+      $('testStatusEl').className = 'status s-warn';
+      try {
+        const res = await apiFetch(TEST_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ entry_id: entry.entry_id, ...testData }),
+        });
+        const payload = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          $('testStatusEl').textContent = payload.message || payload.error || 'Test failed (' + res.status + ')';
+          $('testStatusEl').className = 'status s-err';
+          return;
+        }
+        $('testStatusEl').textContent = 'Test message sent (' + (payload.action || testData.test_action) + ').';
+        $('testStatusEl').className = 'status s-ok';
+      } finally {
+        btn.disabled = false;
+      }
     }
 
     // Unsaved-changes guard
@@ -900,6 +947,7 @@
       loadConfig().catch((e) => setStatus(e.message, 's-err'));
     });
     $('saveBtn').addEventListener('click', () => { saveConfig().catch((e) => setStatus(e.message, 's-err')); });
+    $('sendTestBtn').addEventListener('click', () => { sendTestMessage().catch((e) => { $('testStatusEl').textContent = e.message; $('testStatusEl').className = 'status s-err'; }); });
 
     resetTrackerForm();
     loadConfig().catch((e) => setStatus(e.message, 's-err'));
