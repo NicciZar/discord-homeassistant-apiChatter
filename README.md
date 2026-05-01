@@ -218,6 +218,24 @@ This makes it easy to preview formatting before using a real tracker.
 - Custom integrations cannot add or customize a header back arrow next to the close button.
 - This integration uses in-flow menu steps/actions to navigate between tracker/channel pages.
 
+### Embedded config panel
+
+This integration also provides a cleaner embedded admin panel in the Home Assistant sidebar:
+
+- Sidebar item: **Discord API Chatter**
+- URL path: `/discord-apichatter-config`
+- Access: admin users only
+
+The panel currently supports:
+
+- selecting a Discord API Chatter config entry
+- editing the default channel ID
+- editing saved channel entries as JSON
+- editing trackers as JSON
+- editing remembered test-message defaults as JSON
+
+Saving in the panel updates the config entry and reloads the integration entry automatically.
+
 ---
 
 ## Advanced services

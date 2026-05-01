@@ -252,7 +252,7 @@ def _build_test_message_image_schema(
 class DiscordApiChatterConfigFlow(ConfigFlow, domain=DOMAIN):
     """Handle a config flow for Discord API Chatter."""
 
-    VERSION = 1
+    VERSION = 2
 
     @staticmethod
     @callback

@@ -8,6 +8,8 @@ param(
     [switch]$Prerelease,
     [switch]$ReuseTag,
     [switch]$AllowDirty,
+    # Allow releasing from a branch other than main. Automatically forces -Prerelease.
+    [switch]$AllowNonMain,
     # Kept for backward compatibility; script is fully non-interactive now.
     [switch]$Yes
 )
@@ -221,7 +223,11 @@ try {
     }
 
     if ($currentBranch -ne "main") {
-        throw "Current branch is '$currentBranch'. Switch to 'main' before releasing."
+        if (-not $AllowNonMain) {
+            throw "Current branch is '$currentBranch'. Switch to 'main' before releasing, or use -AllowNonMain to create a pre-release from this branch."
+        }
+        Write-Warning "Releasing from non-main branch '$currentBranch'. Forcing -Prerelease."
+        $Prerelease = $true
     }
 
     if (-not $AllowDirty -and -not $DryRun) {
@@ -323,7 +329,12 @@ try {
     Write-Host "- Current: $currentVersion"
     Write-Host "- Next:    $newVersion"
 
-    $tag = "v$newVersion"
+    # On a non-main branch, embed a "pre.<branch>" suffix so the tag follows
+    # semver pre-release notation and is clearly distinct from stable tags
+    # (e.g. v1.2.3-pre.my-feature).
+    $safeBranch = $currentBranch -replace '[^A-Za-z0-9._-]', '-'
+    $tagSuffix  = if ($currentBranch -ne "main") { "-pre.$safeBranch" } else { "" }
+    $tag        = "v$newVersion$tagSuffix"
 
     $localTagExistsRaw = git tag --list $tag 2>$null
     $localTagExists = Convert-ToTrimmedText -Value $localTagExistsRaw
@@ -458,12 +469,18 @@ try {
                 return
             }
 
+            $releaseTitle = if ($currentBranch -ne "main") {
+                "$tag (pre-release from '$currentBranch')"
+            } else {
+                $tag
+            }
+
             $ghArgs = @(
                 "release",
                 "create",
                 $tag,
                 "--title",
-                $tag,
+                $releaseTitle,
                 "--generate-notes"
             )
 
