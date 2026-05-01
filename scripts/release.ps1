@@ -8,8 +8,6 @@ param(
     [switch]$Prerelease,
     [switch]$ReuseTag,
     [switch]$AllowDirty,
-    # Allow releasing from a branch other than main. Automatically forces -Prerelease.
-    [switch]$AllowNonMain,
     # Kept for backward compatibility; script is fully non-interactive now.
     [switch]$Yes
 )
@@ -223,9 +221,6 @@ try {
     }
 
     if ($currentBranch -ne "main") {
-        if (-not $AllowNonMain) {
-            throw "Current branch is '$currentBranch'. Switch to 'main' before releasing, or use -AllowNonMain to create a pre-release from this branch."
-        }
         Write-Warning "Releasing from non-main branch '$currentBranch'. Forcing -Prerelease."
         $Prerelease = $true
     }
