@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import inspect
 import logging
 import re
 from typing import Any
@@ -33,6 +34,7 @@ from .const import (
     CONF_DEFAULT_CHANNEL,
     CONF_TEST_MESSAGE,
     CONF_TRACKERS,
+    DATA_STREAM_TRACKER,
     DOMAIN,
 )
 
@@ -99,7 +101,7 @@ def _get_domain_entries(hass: HomeAssistant) -> list[ConfigEntry]:
     return list(hass.config_entries.async_entries(DOMAIN))
 
 
-def _serialize_entry(entry: ConfigEntry) -> dict[str, Any]:
+def _serialize_entry(hass: HomeAssistant, entry: ConfigEntry) -> dict[str, Any]:
     """Serialize a config entry for panel API responses.
 
     Reads from both entry.data and entry.options so that configurations
@@ -119,7 +121,15 @@ def _serialize_entry(entry: ConfigEntry) -> dict[str, Any]:
     # channels / trackers / test_message live in entry.options (current schema).
     # Older installs may have stored them in entry.data — fall back gracefully.
     channels    = options.get(CONF_CHANNELS)     or data.get(CONF_CHANNELS)     or []
-    trackers    = options.get(CONF_TRACKERS)     or data.get(CONF_TRACKERS)     or []
+    trackers = options.get(CONF_TRACKERS) or data.get(CONF_TRACKERS) or []
+    if not trackers:
+      # Legacy tracker definitions may still live in storage; surface them in the panel.
+      manager = hass.data.get(DOMAIN, {}).get(DATA_STREAM_TRACKER)
+      if manager is not None:
+        try:
+          trackers = manager.get_trackers_for_entry(entry.entry_id)
+        except Exception:  # pragma: no cover - defensive
+          trackers = []
     test_message = options.get(CONF_TEST_MESSAGE) or data.get(CONF_TEST_MESSAGE) or {}
 
     return {
@@ -138,6 +148,22 @@ def _find_entry_by_id(hass: HomeAssistant, entry_id: str) -> ConfigEntry | None:
         if entry.entry_id == entry_id:
             return entry
     return None
+
+
+  def _panel_icon_kwargs(register_panel: Any) -> dict[str, str]:
+    """Return the correct icon kwarg name for this HA runtime."""
+    try:
+      params = inspect.signature(register_panel).parameters
+    except (TypeError, ValueError):
+      params = {}
+
+    if "icon" in params:
+      return {"icon": "mdi:discord"}
+    if "sidebar_icon" in params:
+      return {"sidebar_icon": "mdi:discord"}
+
+    # Most runtimes use sidebar_icon; use it as safe fallback.
+    return {"sidebar_icon": "mdi:discord"}
 
 
 # ---------------------------------------------------------------------------
@@ -353,6 +379,44 @@ _PANEL_HTML = """<!DOCTYPE html>
     const SAVE_URL     = '__PANEL_SAVE_URL__';
     const SNOWFLAKE_RE = /^\\d{17,20}$/;
 
+    function getAccessToken() {
+      // Home Assistant stores auth tokens in browser storage; use the access token
+      // for iframe API calls that otherwise appear unauthenticated.
+      const storageCandidates = [window.localStorage, window.sessionStorage];
+      for (const store of storageCandidates) {
+        try {
+          const raw = store.getItem('hassTokens');
+          if (!raw) continue;
+          const parsed = JSON.parse(raw);
+          if (parsed && typeof parsed.access_token === 'string' && parsed.access_token) {
+            return parsed.access_token;
+          }
+        } catch (_err) {
+          // Ignore malformed storage and try next source.
+        }
+      }
+      return null;
+    }
+
+    async function apiFetch(url, options = {}) {
+      const token = getAccessToken();
+      const headers = Object.assign({}, options.headers || {});
+      if (token) {
+        headers.Authorization = 'Bearer ' + token;
+      }
+
+      const res = await fetch(url, {
+        credentials: 'same-origin',
+        ...options,
+        headers,
+      });
+
+      if (res.status === 401) {
+        throw new Error('Load failed (401). Please refresh Home Assistant and try again.');
+      }
+      return res;
+    }
+
     const state = { entries: [], selectedEntryId: null, channels: [], dirty: false };
 
     const $ = (id) => document.getElementById(id);
@@ -494,7 +558,7 @@ _PANEL_HTML = """<!DOCTYPE html>
     // Load
     async function loadConfig() {
       clearStatus(); setStatus('Loading\u2026', 's-warn');
-      const res = await fetch(CONFIG_URL, { credentials: 'same-origin' });
+      const res = await apiFetch(CONFIG_URL);
       if (!res.ok) throw new Error('Load failed (' + res.status + ')');
       const payload = await res.json();
       state.entries = payload.entries || [];
@@ -540,8 +604,8 @@ _PANEL_HTML = """<!DOCTYPE html>
       saveBtnEl.disabled = true;
       setStatus('Saving\u2026', 's-warn');
       try {
-        const res = await fetch(SAVE_URL, {
-          method: 'POST', credentials: 'same-origin',
+        const res = await apiFetch(SAVE_URL, {
+          method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             entry_id: entry.entry_id, default_channel: defCh,
@@ -624,7 +688,7 @@ class DiscordApiChatterPanelConfigView(HomeAssistantView):
     async def get(self, request: web.Request) -> web.Response:
         """Return all entries and options for panel editing."""
         hass: HomeAssistant = request.app["hass"]
-        entries = [_serialize_entry(entry) for entry in _get_domain_entries(hass)]
+      entries = [_serialize_entry(hass, entry) for entry in _get_domain_entries(hass)]
         return self.json({"entries": entries})
 
 
@@ -809,16 +873,10 @@ async def async_setup_panel(hass: HomeAssistant) -> None:
             "config": {"url": PANEL_WEB_URL},
             "require_admin": True,
         }
-        try:
-            frontend_component.async_register_built_in_panel(
-                **common_kwargs,
-                icon="mdi:discord",
-            )
-        except TypeError:
-            frontend_component.async_register_built_in_panel(
-                **common_kwargs,
-                sidebar_icon="mdi:discord",
-            )
+          frontend_component.async_register_built_in_panel(
+            **common_kwargs,
+            **_panel_icon_kwargs(frontend_component.async_register_built_in_panel),
+          )
     else:
         # Newer runtimes may not expose hass.components; use module helper APIs.
         from homeassistant.components import frontend as frontend_module
@@ -830,18 +888,11 @@ async def async_setup_panel(hass: HomeAssistant) -> None:
             "config": {"url": PANEL_WEB_URL},
             "require_admin": True,
         }
-        try:
-            frontend_module.async_register_built_in_panel(
-                hass,
-                **common_kwargs,
-                icon="mdi:discord",
-            )
-        except TypeError:
-            frontend_module.async_register_built_in_panel(
-                hass,
-                **common_kwargs,
-                sidebar_icon="mdi:discord",
-            )
+          frontend_module.async_register_built_in_panel(
+            hass,
+            **common_kwargs,
+            **_panel_icon_kwargs(frontend_module.async_register_built_in_panel),
+          )
 
     domain_data["panel_registered"] = True
 

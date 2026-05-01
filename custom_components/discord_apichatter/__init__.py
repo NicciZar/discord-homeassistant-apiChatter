@@ -119,6 +119,23 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             entry.entry_id,
             options[CONF_TRACKERS],
         )
+    else:
+        # Legacy versions persisted trackers in storage only; backfill them into
+        # options so panel/options UI can edit them directly.
+        legacy_trackers = tracker_manager.get_trackers_for_entry(entry.entry_id)
+        if legacy_trackers:
+            new_options = dict(options)
+            new_options[CONF_TRACKERS] = legacy_trackers
+            hass.config_entries.async_update_entry(entry, options=new_options)
+            await tracker_manager.async_apply_entry_trackers(
+                entry.entry_id,
+                legacy_trackers,
+            )
+            _LOGGER.info(
+                "Backfilled %s legacy tracker(s) into entry options for '%s'.",
+                len(legacy_trackers),
+                entry.entry_id,
+            )
 
     await async_register_services(hass)
     await async_setup_panel(hass)
