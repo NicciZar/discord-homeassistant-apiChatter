@@ -688,7 +688,7 @@ class DiscordApiChatterPanelConfigView(HomeAssistantView):
     async def get(self, request: web.Request) -> web.Response:
         """Return all entries and options for panel editing."""
         hass: HomeAssistant = request.app["hass"]
-      entries = [_serialize_entry(hass, entry) for entry in _get_domain_entries(hass)]
+        entries = [_serialize_entry(hass, entry) for entry in _get_domain_entries(hass)]
         return self.json({"entries": entries})
 
 
