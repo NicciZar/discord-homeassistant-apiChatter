@@ -873,10 +873,10 @@ async def async_setup_panel(hass: HomeAssistant) -> None:
             "config": {"url": PANEL_WEB_URL},
             "require_admin": True,
         }
-          frontend_component.async_register_built_in_panel(
+        frontend_component.async_register_built_in_panel(
             **common_kwargs,
             **_panel_icon_kwargs(frontend_component.async_register_built_in_panel),
-          )
+        )
     else:
         # Newer runtimes may not expose hass.components; use module helper APIs.
         from homeassistant.components import frontend as frontend_module
@@ -888,11 +888,11 @@ async def async_setup_panel(hass: HomeAssistant) -> None:
             "config": {"url": PANEL_WEB_URL},
             "require_admin": True,
         }
-          frontend_module.async_register_built_in_panel(
+        frontend_module.async_register_built_in_panel(
             hass,
             **common_kwargs,
             **_panel_icon_kwargs(frontend_module.async_register_built_in_panel),
-          )
+        )
 
     domain_data["panel_registered"] = True
 
