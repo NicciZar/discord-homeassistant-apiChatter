@@ -120,16 +120,16 @@ def _serialize_entry(hass: HomeAssistant, entry: ConfigEntry) -> dict[str, Any]:
 
     # channels / trackers / test_message live in entry.options (current schema).
     # Older installs may have stored them in entry.data — fall back gracefully.
-    channels    = options.get(CONF_CHANNELS)     or data.get(CONF_CHANNELS)     or []
+    channels = options.get(CONF_CHANNELS) or data.get(CONF_CHANNELS) or []
     trackers = options.get(CONF_TRACKERS) or data.get(CONF_TRACKERS) or []
     if not trackers:
-      # Legacy tracker definitions may still live in storage; surface them in the panel.
-      manager = hass.data.get(DOMAIN, {}).get(DATA_STREAM_TRACKER)
-      if manager is not None:
-        try:
-          trackers = manager.get_trackers_for_entry(entry.entry_id)
-        except Exception:  # pragma: no cover - defensive
-          trackers = []
+        # Legacy tracker definitions may still live in storage; surface them in the panel.
+        manager = hass.data.get(DOMAIN, {}).get(DATA_STREAM_TRACKER)
+        if manager is not None:
+            try:
+                trackers = manager.get_trackers_for_entry(entry.entry_id)
+            except Exception:  # pragma: no cover - defensive
+                trackers = []
     test_message = options.get(CONF_TEST_MESSAGE) or data.get(CONF_TEST_MESSAGE) or {}
 
     return {
@@ -150,17 +150,17 @@ def _find_entry_by_id(hass: HomeAssistant, entry_id: str) -> ConfigEntry | None:
     return None
 
 
-  def _panel_icon_kwargs(register_panel: Any) -> dict[str, str]:
+def _panel_icon_kwargs(register_panel: Any) -> dict[str, str]:
     """Return the correct icon kwarg name for this HA runtime."""
     try:
-      params = inspect.signature(register_panel).parameters
+        params = inspect.signature(register_panel).parameters
     except (TypeError, ValueError):
-      params = {}
+        params = {}
 
     if "icon" in params:
-      return {"icon": "mdi:discord"}
+        return {"icon": "mdi:discord"}
     if "sidebar_icon" in params:
-      return {"sidebar_icon": "mdi:discord"}
+        return {"sidebar_icon": "mdi:discord"}
 
     # Most runtimes use sidebar_icon; use it as safe fallback.
     return {"sidebar_icon": "mdi:discord"}
