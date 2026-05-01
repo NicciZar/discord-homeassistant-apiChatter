@@ -802,46 +802,46 @@ async def async_setup_panel(hass: HomeAssistant) -> None:
 
     frontend_component = getattr(getattr(hass, "components", None), "frontend", None)
     if frontend_component is not None:
-      common_kwargs = {
-        "component_name": "iframe",
-        "sidebar_title": "Discord API Chatter",
-        "frontend_url_path": PANEL_URL_PATH,
-        "config": {"url": PANEL_WEB_URL},
-        "require_admin": True,
-      }
-      try:
-        frontend_component.async_register_built_in_panel(
-          **common_kwargs,
-          icon="mdi:discord",
-        )
-      except TypeError:
-        frontend_component.async_register_built_in_panel(
-          **common_kwargs,
-          sidebar_icon="mdi:discord",
-        )
+        common_kwargs = {
+            "component_name": "iframe",
+            "sidebar_title": "Discord API Chatter",
+            "frontend_url_path": PANEL_URL_PATH,
+            "config": {"url": PANEL_WEB_URL},
+            "require_admin": True,
+        }
+        try:
+            frontend_component.async_register_built_in_panel(
+                **common_kwargs,
+                icon="mdi:discord",
+            )
+        except TypeError:
+            frontend_component.async_register_built_in_panel(
+                **common_kwargs,
+                sidebar_icon="mdi:discord",
+            )
     else:
         # Newer runtimes may not expose hass.components; use module helper APIs.
         from homeassistant.components import frontend as frontend_module
 
-      common_kwargs = {
-        "component_name": "iframe",
-        "sidebar_title": "Discord API Chatter",
-        "frontend_url_path": PANEL_URL_PATH,
-        "config": {"url": PANEL_WEB_URL},
-        "require_admin": True,
-      }
-      try:
-        frontend_module.async_register_built_in_panel(
-          hass,
-          **common_kwargs,
-          icon="mdi:discord",
-        )
-      except TypeError:
-        frontend_module.async_register_built_in_panel(
-          hass,
-          **common_kwargs,
-          sidebar_icon="mdi:discord",
-        )
+        common_kwargs = {
+            "component_name": "iframe",
+            "sidebar_title": "Discord API Chatter",
+            "frontend_url_path": PANEL_URL_PATH,
+            "config": {"url": PANEL_WEB_URL},
+            "require_admin": True,
+        }
+        try:
+            frontend_module.async_register_built_in_panel(
+                hass,
+                **common_kwargs,
+                icon="mdi:discord",
+            )
+        except TypeError:
+            frontend_module.async_register_built_in_panel(
+                hass,
+                **common_kwargs,
+                sidebar_icon="mdi:discord",
+            )
 
     domain_data["panel_registered"] = True
 
